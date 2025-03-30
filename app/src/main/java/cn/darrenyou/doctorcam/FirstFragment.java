@@ -1,6 +1,7 @@
 package cn.darrenyou.doctorcam;
 
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -58,26 +59,36 @@ public class FirstFragment extends Fragment implements UsbDeviceManager.DeviceLi
         adapter = new DeviceListAdapter(requireContext(), deviceList);
         binding.deviceListView.setAdapter(adapter);
         
-        // 设置列表项点击事件
+        // 设置列表项点击和长按事件
         binding.deviceListView.setOnItemClickListener((parent, view1, position, id) -> {
-            UsbDeviceManager.UsbDeviceInfo deviceInfo = deviceList.get(position);
-            
-            // 请求USB设备权限
-            usbDeviceManager.requestPermission(deviceInfo.getDevice());
-
-            // 传递设备信息到SecondFragment
-            Bundle args = new Bundle();
-            args.putInt("deviceId", deviceInfo.getDeviceId());
-            args.putInt("vendorId", deviceInfo.getVendorId());
-            args.putInt("productId", deviceInfo.getProductId());
-
-            // 导航到相机预览页面
-            NavHostFragment.findNavController(FirstFragment.this)
-                    .navigate(R.id.action_FirstFragment_to_SecondFragment, args);
+            navigateToPreview(position, R.id.action_FirstFragment_to_SecondFragment);
+        });
+        
+        binding.deviceListView.setOnItemLongClickListener((parent, view1, position, id) -> {
+            navigateToPreview(position, R.id.action_FirstFragment_to_VideoStreamFragment);
+            return true;  // 返回true表示已处理长按事件
         });
         
         // 更新设备列表
         updateEmptyView();
+    }
+
+    // 添加导航辅助方法
+    private void navigateToPreview(int position, int actionId) {
+        UsbDeviceManager.UsbDeviceInfo deviceInfo = deviceList.get(position);
+        
+        // 请求USB设备权限
+        usbDeviceManager.requestPermission(deviceInfo.getDevice());
+
+        // 传递设备信息到目标Fragment
+        Bundle args = new Bundle();
+        args.putInt("deviceId", deviceInfo.getDeviceId());
+        args.putInt("vendorId", deviceInfo.getVendorId());
+        args.putInt("productId", deviceInfo.getProductId());
+
+        // 导航到目标页面
+        NavHostFragment.findNavController(FirstFragment.this)
+                .navigate(actionId, args);
     }
     
     @Override
@@ -87,7 +98,10 @@ public class FirstFragment extends Fragment implements UsbDeviceManager.DeviceLi
             usbDeviceManager.register();
         }
 
-        // 重新设置状态栏样式
+        // 恢复竖屏和系统UI
+        requireActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        SystemBarUtils.exitFullScreenImmersive(requireActivity());
+
         SystemBarUtils.transparentStatusBar(requireActivity());
         SystemBarUtils.setStatusBarTextColor(requireActivity(), false);
         SystemBarUtils.transparentNavigationBar(requireActivity());

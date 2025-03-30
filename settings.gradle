@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "DoctorCam"
 include ':app'
+include ':opencv'

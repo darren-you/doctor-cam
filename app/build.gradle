@@ -41,7 +41,18 @@ dependencies {
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
+    
+    // 原生库支持
+    implementation fileTree(dir: 'libs', include: ['*.so'])
+
+    // OpenCV
+    implementation project(':opencv')
 
     // uvc摄像头
     implementation 'org.uvccamera:lib:0.0.12'
+
+    // TensorFlow Lite 模型推理
+    implementation 'org.tensorflow:tensorflow-lite:2.17.0'
+    implementation 'org.tensorflow:tensorflow-lite-support:0.5.0'
+    implementation 'org.tensorflow:tensorflow-lite-metadata:0.5.0'
 }

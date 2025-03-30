@@ -14,6 +14,9 @@
         <action
             android:id="@+id/action_FirstFragment_to_SecondFragment"
             app:destination="@id/SecondFragment" />
+        <action
+            android:id="@+id/action_FirstFragment_to_VideoStreamFragment"
+            app:destination="@id/VideoStreamFragment" />
     </fragment>
     <fragment
         android:id="@+id/SecondFragment"
@@ -23,6 +26,15 @@
 
         <action
             android:id="@+id/action_SecondFragment_to_FirstFragment"
+            app:destination="@id/FirstFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/VideoStreamFragment"
+        android:name="cn.darrenyou.doctorcam.VideoStreamFragment"
+        android:label="@string/video_stream_fragment_label"
+        tools:layout="@layout/fragment_video_stream">
+        <action
+            android:id="@+id/action_VideoStreamFragment_to_FirstFragment"
             app:destination="@id/FirstFragment" />
     </fragment>
 </navigation>
