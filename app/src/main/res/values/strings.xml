@@ -2,9 +2,10 @@
     <string name="app_name">DoctorCam</string>
     <string name="action_settings">Settings</string>
     <!-- Strings used for fragments for navigation -->
-    <string name="first_fragment_label">First Fragment</string>
-    <string name="second_fragment_label">Second Fragment</string>
-    <string name="video_stream_fragment_label">VideoStream Fragment</string>
+    <string name="uvc_devices_fragment_label">UvcDevicesFragment</string>
+    <string name="uvc_preview_fragment_label">UvcPreviewFragment</string>
+    <string name="onnx_detection_fragment_label">OnnxDetectionFragment</string>
+    <string name="tensor_flow_test_fragment_label">TensorFlowTestFragment</string>
 
 
 </resources>

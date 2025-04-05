@@ -3,38 +3,59 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/FirstFragment">
+    app:startDestination="@id/UvcDevicesFragment">
 
     <fragment
-        android:id="@+id/FirstFragment"
-        android:name="cn.darrenyou.doctorcam.FirstFragment"
-        android:label="@string/first_fragment_label"
-        tools:layout="@layout/fragment_first">
+        android:id="@+id/UvcDevicesFragment"
+        android:name="cn.darrenyou.doctorcam.UvcDevicesFragment"
+        android:label="@string/uvc_devices_fragment_label"
+        tools:layout="@layout/fragment_uvc_devices">
 
+        <!--    UVC相机预览    -->
         <action
-            android:id="@+id/action_FirstFragment_to_SecondFragment"
-            app:destination="@id/SecondFragment" />
+            android:id="@+id/action_UvcDevicesFragment_to_UvcPreviewFragment"
+            app:destination="@id/UvcPreviewFragment" />
+        <!--    Onnx检测    -->
         <action
-            android:id="@+id/action_FirstFragment_to_VideoStreamFragment"
-            app:destination="@id/VideoStreamFragment" />
+            android:id="@+id/action_UvcDevicesFragment_to_OnnxDetectionFragment"
+            app:destination="@id/OnnxDetectionFragment" />
+        <!--    TensorFlow Lite检测    -->
+        <action
+            android:id="@+id/action_UvcDevicesFragment_to_TensorFlowTestFragment"
+            app:destination="@id/TensorFlowTestFragment" />
     </fragment>
+
+    <!--    UVC相机预览    -->
     <fragment
-        android:id="@+id/SecondFragment"
-        android:name="cn.darrenyou.doctorcam.SecondFragment"
-        android:label="@string/second_fragment_label"
-        tools:layout="@layout/fragment_second">
+        android:id="@+id/UvcPreviewFragment"
+        android:name="cn.darrenyou.doctorcam.UvcPreviewFragment"
+        android:label="@string/uvc_preview_fragment_label"
+        tools:layout="@layout/fragment_uvc_preview">
 
         <action
-            android:id="@+id/action_SecondFragment_to_FirstFragment"
-            app:destination="@id/FirstFragment" />
+            android:id="@+id/action_UvcPreviewFragment_to_UvcDevicesFragment"
+            app:destination="@id/UvcDevicesFragment" />
     </fragment>
+
+    <!--    Onnx检测    -->
     <fragment
-        android:id="@+id/VideoStreamFragment"
-        android:name="cn.darrenyou.doctorcam.VideoStreamFragment"
-        android:label="@string/video_stream_fragment_label"
-        tools:layout="@layout/fragment_video_stream">
+        android:id="@+id/OnnxDetectionFragment"
+        android:name="cn.darrenyou.doctorcam.OnnxDetectionFragment"
+        android:label="@string/onnx_detection_fragment_label"
+        tools:layout="@layout/fragment_onnx_detection">
         <action
-            android:id="@+id/action_VideoStreamFragment_to_FirstFragment"
-            app:destination="@id/FirstFragment" />
+            android:id="@+id/action_OnnxDetectionFragment_to_UvcDevicesFragment"
+            app:destination="@id/UvcDevicesFragment" />
+    </fragment>
+
+    <!--    TensorFlow Lite检测    -->
+    <fragment
+        android:id="@+id/TensorFlowTestFragment"
+        android:name="cn.darrenyou.doctorcam.TensorFlowTestFragment"
+        android:label="@string/tensor_flow_test_fragment_label"
+        tools:layout="@layout/fragment_tensor_flow_test">
+        <action
+            android:id="@+id/action_TensorFlowTestFragment_to_UvcDevicesFragment"
+            app:destination="@id/UvcDevicesFragment" />
     </fragment>
 </navigation>
