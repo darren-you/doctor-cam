@@ -1,15 +1,15 @@
-package cn.darrenyou.doctorcam.onnx;
+package cn.darrenyou.doctorcam.base;
 
 import android.graphics.RectF;
 
-public class OnnxDetection {
+public class BaseDetection {
     public float confidence;
     public RectF bbox;
     public String className;
     public int originalImageWidth;
     public int originalImageHeight;
 
-    public OnnxDetection(float confidence, RectF bbox, String className) {
+    public BaseDetection(float confidence, RectF bbox, String className) {
         this.confidence = confidence;
         this.bbox = bbox;
         this.className = className;
@@ -17,7 +17,7 @@ public class OnnxDetection {
         this.originalImageHeight = 0; // 默认值
     }
 
-    public OnnxDetection(float confidence, RectF bbox, String className, int originalImageWidth, int originalImageHeight) {
+    public BaseDetection(float confidence, RectF bbox, String className, int originalImageWidth, int originalImageHeight) {
         this.confidence = confidence;
         this.bbox = bbox;
         this.className = className;

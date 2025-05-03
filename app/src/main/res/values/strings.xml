@@ -5,7 +5,7 @@
     <string name="uvc_devices_fragment_label">UvcDevicesFragment</string>
     <string name="uvc_preview_fragment_label">UvcPreviewFragment</string>
     <string name="onnx_detection_fragment_label">OnnxDetectionFragment</string>
-    <string name="tensor_flow_test_fragment_label">TensorFlowTestFragment</string>
+    <string name="paddle_detection_fragment_label">PaddleDetectionFragment</string>
 
 
 </resources>

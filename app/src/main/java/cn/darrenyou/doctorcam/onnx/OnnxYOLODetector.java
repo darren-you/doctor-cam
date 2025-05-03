@@ -19,6 +19,7 @@ import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
+import cn.darrenyou.doctorcam.base.BaseDetection;
 
 public class OnnxYOLODetector {
     private static final String TAG = "OnnxDetectionLog";
@@ -83,7 +84,7 @@ public class OnnxYOLODetector {
         }
     }
 
-    public List<OnnxDetection> detect(Bitmap bitmap) {
+    public List<BaseDetection> detect(Bitmap bitmap) {
         Log.d(TAG, "开始检测，输入图像尺寸: " + bitmap.getWidth() + "x" + bitmap.getHeight());
 
         // 保存原始图像尺寸，用于后处理
@@ -93,7 +94,7 @@ public class OnnxYOLODetector {
         // 预处理图像
         float[] input = preprocessImage(bitmap);
 
-        List<OnnxDetection> detections = new ArrayList<>();
+        List<BaseDetection> detections = new ArrayList<>();
 
         try {
             // 创建输入张量
@@ -275,7 +276,7 @@ public class OnnxYOLODetector {
                     RectF bbox = new RectF(x1, y1, x2, y2);
 
                     // 添加检测结果，包含原始图像尺寸信息
-                    detections.add(new OnnxDetection(confidence, bbox, CLASSES[classIndex], originalWidth, originalHeight));
+                    detections.add(new BaseDetection(confidence, bbox, CLASSES[classIndex], originalWidth, originalHeight));
 
                     Log.d(TAG, "最终检测结果: 类别=" + CLASSES[classIndex] +
                             ", 置信度=" + confidence +

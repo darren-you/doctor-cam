@@ -65,7 +65,9 @@ public class UvcDevicesFragment extends Fragment implements UsbDeviceManager.Dev
         
         binding.deviceListView.setOnItemLongClickListener((parent, view1, position, id) -> {
             // onnx推理
-            navigateToPreview(position, R.id.action_UvcDevicesFragment_to_OnnxDetectionFragment);
+//            navigateToPreview(position, R.id.action_UvcDevicesFragment_to_OnnxDetectionFragment);
+//            // PaddleLite推理
+            navigateToPreview(position, R.id.action_UvcDevicesFragment_to_PaddleDetectionFragment);
             return true;
         });
         

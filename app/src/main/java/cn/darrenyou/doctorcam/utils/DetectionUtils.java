@@ -9,7 +9,7 @@ import android.util.Log;
 import java.util.List;
 
 import cn.darrenyou.doctorcam.BuildConfig;
-import cn.darrenyou.doctorcam.onnx.OnnxDetection;
+import cn.darrenyou.doctorcam.base.BaseDetection;
 import cn.darrenyou.doctorcam.onnx.OnnxYOLODetector;
 
 /**
@@ -34,7 +34,7 @@ public class DetectionUtils {
      * @param scaleX X轴缩放比例
      * @param scaleY Y轴缩放比例
      */
-    public static void drawDetections(Canvas canvas, List<OnnxDetection> detections, float scaleX, float scaleY) {
+    public static void drawDetections(Canvas canvas, List<BaseDetection> detections, float scaleX, float scaleY) {
         // 设置绘制参数
         Paint boxPaint = new Paint();
         boxPaint.setStyle(Paint.Style.STROKE);
@@ -48,7 +48,7 @@ public class DetectionUtils {
         textPaint.setTextSize(36);
 
         // 绘制每个检测结果
-        for (OnnxDetection detection : detections) {
+        for (BaseDetection detection : detections) {
             // 获取类别索引
             int classIndex = 0;
             for (int i = 0; i < OnnxYOLODetector.CLASSES.length; i++) {
@@ -120,7 +120,7 @@ public class DetectionUtils {
      * @param canvas 画布
      * @param detections 检测结果列表
      */
-    public static void drawDetectionsOnBitmap(Canvas canvas, List<OnnxDetection> detections) {
+    public static void drawDetectionsOnBitmap(Canvas canvas, List<BaseDetection> detections) {
         // 设置绘制参数
         Paint boxPaint = new Paint();
         boxPaint.setStyle(Paint.Style.STROKE);
@@ -133,7 +133,7 @@ public class DetectionUtils {
         textPaint.setColor(Color.WHITE);
         textPaint.setTextSize(36);
 
-        for (OnnxDetection detection : detections) {
+        for (BaseDetection detection : detections) {
             // 获取类别索引
             int classIndex = 0;
             for (int i = 0; i < OnnxYOLODetector.CLASSES.length; i++) {

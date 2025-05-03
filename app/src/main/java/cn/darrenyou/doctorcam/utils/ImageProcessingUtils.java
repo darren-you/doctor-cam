@@ -15,6 +15,7 @@ import org.opencv.imgproc.Imgproc;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -197,5 +198,38 @@ public class ImageProcessingUtils {
             Log.e(TAG, "图像预处理失败", e);
             return input;
         }
+    }
+
+    public static Bitmap getFrameAsBitmap(ByteBuffer frame, int width, int height) {
+        try {
+            // 将ByteBuffer转换为byte数组
+            byte[] data = new byte[frame.remaining()];
+            frame.get(data);
+
+            // 使用OpenCV将NV21格式转换为Bitmap
+            Mat yuvMat = new Mat(height + height/2, width, CvType.CV_8UC1);
+            yuvMat.put(0, 0, data);
+
+            Mat rgbMat = new Mat();
+            Imgproc.cvtColor(yuvMat, rgbMat, Imgproc.COLOR_YUV2RGB_NV21);
+
+            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            Utils.matToBitmap(rgbMat, bitmap);
+
+            yuvMat.release();
+            rgbMat.release();
+
+            return bitmap;
+        } catch (Exception e) {
+            Log.e("ImageProcessingUtils", "转换帧为Bitmap失败", e);
+            return null;
+        }
+    }
+
+    public static byte[] bitmapToByteArray(Bitmap bitmap) {
+        // 将Bitmap转换为字节数组保存
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream);
+        return stream.toByteArray();
     }
 }

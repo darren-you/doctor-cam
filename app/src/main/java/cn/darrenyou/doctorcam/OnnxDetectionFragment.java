@@ -10,7 +10,6 @@ import android.graphics.PorterDuff;
 import android.hardware.usb.UsbDevice;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Size;
 import android.view.LayoutInflater;
@@ -30,10 +29,9 @@ import com.serenegiant.usb.UVCCamera;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
+import cn.darrenyou.doctorcam.base.BaseDetection;
 import cn.darrenyou.doctorcam.databinding.FragmentOnnxDetectionBinding;
-import cn.darrenyou.doctorcam.onnx.OnnxDetection;
 import cn.darrenyou.doctorcam.onnx.OnnxYOLODetector;
 import cn.darrenyou.doctorcam.utils.CameraUtils;
 import cn.darrenyou.doctorcam.utils.ImageProcessingUtils;
@@ -56,106 +54,67 @@ public class OnnxDetectionFragment extends Fragment {
 
     // YOLO检测器
     private OnnxYOLODetector yoloDetector;
-    private HandlerThread inferenceThread;
-    private Handler inferenceHandler;
     private Handler uiHandler;
     private Paint boxPaint;
     private Paint textPaint;
-    private final AtomicBoolean isProcessingFrame = new AtomicBoolean(false);
-    private boolean isDetectionEnabled = true;
-
-    // OpenCV相关
-    private boolean openCVInitialized = false;
-
-    // 性能优化相关
-    private int frameSkipCount = 0;
-    private int FRAME_SKIP_THRESHOLD = 1; // 每5帧处理1帧
-    private List<OnnxDetection> lastResults = null; // 存储上一次的检测结果
 
     // 直接绘制模式
     private SurfaceHolder overlayHolder;
 
-    // 最新帧数据
-    private byte[] lastFrameData = null;
-    private final Object lastFrameLock = new Object();
+    byte[] lastFrameData;
+    List<BaseDetection> lastDetectionResults;
 
     // 修改后的帧回调处理
     private final IFrameCallback frameCallback = new IFrameCallback() {
+        private int width = 0;
+        private int height = 0;
+
         @Override
         public void onFrame(final ByteBuffer frame) {
-            if (uvcCamera == null || !isDetectionEnabled) {
+            if (uvcCamera == null) {
                 return;
             }
 
-            // 检查是否正在处理上一帧
-            if (isProcessingFrame.get()) {
-                return;
-            }
-
-            isProcessingFrame.set(true);
+            // 复制帧数据
+            byte[] data = new byte[frame.remaining()];
+            frame.get(data);
+            frame.rewind();
+            lastFrameData = data;
 
             try {
-                // 获取摄像头预览尺寸
-                final int width = uvcCamera.getPreviewSize().width;
-                final int height = uvcCamera.getPreviewSize().height;
-
-                // 复制帧数据
-                byte[] data = new byte[frame.remaining()];
-                frame.get(data);
-                frame.rewind();
-
-                // 保存最新帧数据
-                synchronized (lastFrameLock) {
-                    lastFrameData = data;
+                // 只在第一次或尺寸变化时获取预览尺寸
+                if (width == 0 || height == 0) {
+                    width = uvcCamera.getPreviewSize().width;
+                    height = uvcCamera.getPreviewSize().height;
                 }
 
-                // 帧跳过逻辑，提高性能
-                frameSkipCount = (frameSkipCount + 1) % (FRAME_SKIP_THRESHOLD + 1);
-                if (frameSkipCount != 0) {
-                    // 如果有上一次的检测结果，直接绘制
-                    if (lastResults != null) {
-                        drawDetectionResults(lastResults);
-                    }
-                    isProcessingFrame.set(false);
+                // 直接获取Bitmap格式的帧数据
+                Bitmap bitmap = ImageProcessingUtils.getFrameAsBitmap(frame, width, height);
+                if (bitmap == null) {
                     return;
                 }
 
-                // 使用推理线程处理图像
-                inferenceHandler.post(() -> {
-                    try {
-                        // 将NV21数据转换为Bitmap
-                        Bitmap bitmap = ImageProcessingUtils.yuv2BitmapNative(data, width, height);
-                        if (bitmap == null) {
-                            isProcessingFrame.set(false);
-                            return;
-                        }
+                // 推理
+                try {
+                    // 直接使用原始图像进行推理
+                    List<BaseDetection> detections = yoloDetector.detect(bitmap);
+                    lastDetectionResults = detections;
 
-                        // 直接使用原始图像进行推理
-                        List<OnnxDetection> detections = yoloDetector.detect(bitmap);
-
-                        // 保存检测结果
-                        lastResults = detections;
-
-                        // 在UI线程中绘制检测结果
-                        if (uiHandler != null) {
-                            uiHandler.post(() -> {
-                                drawDetectionResults(detections);
-                                // 回收位图
-                                bitmap.recycle();
-                                isProcessingFrame.set(false);
-                            });
-                        } else {
+                    // 在UI线程中绘制检测结果
+                    if (uiHandler != null) {
+                        uiHandler.post(() -> {
+                            drawDetectionResults(detections);
+                            // 回收位图
                             bitmap.recycle();
-                            isProcessingFrame.set(false);
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "处理帧时出错", e);
-                        isProcessingFrame.set(false);
+                        });
+                    } else {
+                        bitmap.recycle();
                     }
-                });
+                } catch (Exception e) {
+                    Log.e(TAG, "处理帧时出错", e);
+                }
             } catch (Exception e) {
                 Log.e(TAG, "处理摄像头帧时出错", e);
-                isProcessingFrame.set(false);
             }
         }
     };
@@ -222,10 +181,8 @@ public class OnnxDetectionFragment extends Fragment {
             OpenCVInitializer.initAsync(requireContext(), success -> {
                 if (success) {
                     Log.d(TAG, "OpenCV初始化成功");
-                    openCVInitialized = true;
                 } else {
                     Log.e(TAG, "OpenCV初始化失败");
-                    openCVInitialized = false;
                     if (isAdded() && getActivity() != null) {
                         requireActivity().runOnUiThread(() ->
                                 Toast.makeText(requireContext(), "OpenCV初始化失败，图像处理功能受限", Toast.LENGTH_SHORT).show());
@@ -234,16 +191,10 @@ public class OnnxDetectionFragment extends Fragment {
             });
         } else {
             Log.d(TAG, "OpenCV已经初始化");
-            openCVInitialized = true;
         }
     }
 
     private void initInference() {
-        // 初始化推理线程
-        inferenceThread = new HandlerThread("InferenceThread");
-        inferenceThread.start();
-        inferenceHandler = new Handler(inferenceThread.getLooper());
-
         // 初始化画笔
         boxPaint = new Paint();
         boxPaint.setColor(Color.RED);
@@ -405,7 +356,7 @@ public class OnnxDetectionFragment extends Fragment {
     }
 
     // 绘制检测结果
-    private void drawDetectionResults(List<OnnxDetection> detections) {
+    private void drawDetectionResults(List<BaseDetection> detections) {
         if (overlayHolder == null || !isAdded() || getActivity() == null) {
             Log.e(TAG, "绘制失败：overlayHolder为空或Fragment已分离");
             return;
@@ -479,64 +430,40 @@ public class OnnxDetectionFragment extends Fragment {
             return;
         }
 
-        try {
-            // 获取最新的帧数据
-            byte[] data;
-            synchronized (lastFrameLock) {
-                if (lastFrameData == null) {
-                    Toast.makeText(requireContext(), "无可用的图像数据", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                data = lastFrameData.clone();
-            }
-
-            // 获取预览尺寸
-            int previewWidth = uvcCamera.getPreviewSize().width;
-            int previewHeight = uvcCamera.getPreviewSize().height;
-
-            // 转换为Bitmap
-            Bitmap bitmap = null;
-            Bitmap resultBitmap = null;
-
-            try {
-                // 使用工具类转换图像
-                bitmap = ImageProcessingUtils.yuv2BitmapNative(data, previewWidth, previewHeight);
-                
-                if (bitmap == null) {
-                    Toast.makeText(requireContext(), "图像转换失败", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                // 创建一个新的位图用于绘制检测结果
-                resultBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true);
-                Canvas canvas = new Canvas(resultBitmap);
-
-                // 绘制检测结果
-                if (lastResults != null && !lastResults.isEmpty()) {
-                    // 使用DetectionUtils绘制检测结果到位图上
-                    DetectionUtils.drawDetectionsOnBitmap(canvas, lastResults);
-                }
-
-                // 保存图像前添加日志
-                Log.d(TAG, "保存图像，尺寸: " + resultBitmap.getWidth() + "x" + resultBitmap.getHeight() + 
-                    ", 配置: " + resultBitmap.getConfig());
-                    
-                // 保存图像
-                StorageUtils.saveImageToGallery(requireContext(), resultBitmap);
-                Toast.makeText(requireContext(), "图片已保存", Toast.LENGTH_SHORT).show();
-            } finally {
-                // 回收位图
-                if (bitmap != null && bitmap != resultBitmap) {
-                    bitmap.recycle();
-                }
-                if (resultBitmap != null) {
-                    resultBitmap.recycle();
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "捕获图像时出错", e);
-            Toast.makeText(requireContext(), "捕获图像失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        // 获取预览尺寸
+        int previewWidth = uvcCamera.getPreviewSize().width;
+        int previewHeight = uvcCamera.getPreviewSize().height;
+        Bitmap lastFrameBitmap = ImageProcessingUtils.yuv2BitmapNative(lastFrameData.clone(), previewWidth, previewHeight);
+        if (lastFrameBitmap == null) {
+            Toast.makeText(requireContext(), "获取当前帧失败", Toast.LENGTH_SHORT).show();
+            return;
         }
+
+        // 创建一个新的Bitmap用于绘制检测结果
+        Bitmap resultBitmap = Bitmap.createBitmap(
+                lastFrameBitmap.getWidth(),
+                lastFrameBitmap.getHeight(),
+                Bitmap.Config.ARGB_8888
+        );
+
+        // 绘制原始图像
+        Canvas canvas = new Canvas(resultBitmap);
+        canvas.drawBitmap(lastFrameBitmap, 0, 0, null);
+
+        // 绘制检测框
+        if (yoloDetector != null && lastDetectionResults != null) {
+            // 绘制检测结果
+            DetectionUtils.drawDetections(canvas, lastDetectionResults, 1.0f, 1.0f);
+        }
+
+        // 保存图片
+        StorageUtils.saveImageToGallery(requireContext(), resultBitmap);
+
+        // 回收Bitmap
+        lastFrameBitmap.recycle();
+        resultBitmap.recycle();
+
+        Toast.makeText(requireContext(), "图片已保存", Toast.LENGTH_SHORT).show();
     }
 
     private void releaseCamera() {
@@ -581,18 +508,6 @@ public class OnnxDetectionFragment extends Fragment {
     private void releaseResources() {
         // 释放相机资源
         releaseCamera();
-        
-        // 释放推理线程
-        if (inferenceThread != null) {
-            inferenceThread.quitSafely();
-            try {
-                inferenceThread.join();
-                inferenceThread = null;
-                inferenceHandler = null;
-            } catch (InterruptedException e) {
-                Log.e(TAG, "中断推理线程时出错", e);
-            }
-        }
 
         // 释放UI线程Handler
         uiHandler = null;
@@ -602,14 +517,6 @@ public class OnnxDetectionFragment extends Fragment {
             yoloDetector.close();
             yoloDetector = null;
         }
-        
-        // 清除最后一帧数据
-        synchronized (lastFrameLock) {
-            lastFrameData = null;
-        }
-        
-        // 清除最后的检测结果
-        lastResults = null;
 
         // 释放绘图资源
         boxPaint = null;
