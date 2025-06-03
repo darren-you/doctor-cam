@@ -14,6 +14,7 @@ import android.hardware.usb.UsbDevice;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.util.Size;
 import android.view.LayoutInflater;
@@ -52,6 +53,25 @@ import cn.darrenyou.doctorcam.utils.SystemBarUtils;
 public class PaddleDetectionFragment extends Fragment {
 
     private static final String TAG = "PaddleDetectionFragment";
+    // 用于计时
+    private long frameStartTime = 0; // 帧开始处理时间
+    private long inferenceStartTime = 0; // 推理开始时间
+    private int frameCount = 0; // 帧计数器
+    private long lastFpsTimestamp = 0; // 上一次计算FPS的时间戳
+
+    private long totalInferenceTime = 0; // 总推理时间
+    private long inferenceCount = 0;     // 推理次数计数器
+
+    private long totalLatencyTime = 0;   // 总延迟时间（从捕获到显示）
+    private long latencyCount = 0;       // 延迟计数器
+    private long minInferenceTime = Long.MAX_VALUE; // 单帧推理最短时间
+    private long maxInferenceTime = 0;              // 单帧推理最长时间
+    private long lastResetTimestamp = 0;            // 上次重置时间戳
+
+
+
+    // 用于计时
+
     private FragmentPaddleDetectionBinding binding;
     private USBMonitor usbMonitor;
     private UVCCamera uvcCamera;
@@ -86,6 +106,8 @@ public class PaddleDetectionFragment extends Fragment {
                 return;
             }
 
+            frameStartTime = System.currentTimeMillis(); // 开始处理帧时间
+
             // 复制帧数据
             byte[] data = new byte[frame.remaining()];
             frame.get(data);
@@ -105,10 +127,41 @@ public class PaddleDetectionFragment extends Fragment {
                     return;
                 }
 
+                // 推理开始时间
+                inferenceStartTime = System.currentTimeMillis();
+
+                // 插入：推理前的内存使用情况（转换为MB）
+                long beforeMemory = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024);
+                Log.e("MemoryUsage", "推理前内存使用: " + beforeMemory + " MB");
+
                 // 使用Paddle进行推理
                 try {
                     float[][] detectionResults = paddleDetector.processWithResults(bitmap);
                     lastDetectionResults = detectionResults;
+
+                    // 推理结束时间
+                    long inferenceEndTime = System.currentTimeMillis();
+                    long inferenceDuration = inferenceEndTime - inferenceStartTime;
+
+                    // 插入：推理后的内存使用情况（转换为MB）
+                    long afterMemory = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024);
+                    Log.d("MemoryUsage", "推理后内存使用: " + afterMemory + " MB");
+
+                    // 更新极值
+                    minInferenceTime = Math.min(minInferenceTime, inferenceDuration);
+                    maxInferenceTime = Math.max(maxInferenceTime, inferenceDuration);
+
+                    // 累积推理时间
+                    totalInferenceTime += inferenceDuration;
+                    inferenceCount++;
+
+                    Log.d("PaddleDetectionTime", "单帧推理耗时: " + inferenceDuration + " ms");
+
+                    // 打印平均推理耗时（每100帧打印一次）
+                    if (inferenceCount % 100 == 0) {
+                        long avgInferenceTime = totalInferenceTime / inferenceCount;
+                        Log.w("PaddleDetectionTime", "平均推理耗时: " + avgInferenceTime + " ms");
+                    }
 
                     // 将结果转换为List<BaseDetection>格式
                     List<BaseDetection> detections = new ArrayList<>();
@@ -128,7 +181,7 @@ public class PaddleDetectionFragment extends Fragment {
                     // 在UI线程中绘制检测结果
                     if (uiHandler != null) {
                         uiHandler.post(() -> {
-                            drawDetectionResults(detections);
+                            drawDetectionResults(detections, frameStartTime); // 传入帧开始时间
                         });
                     } else {
                         bitmap.recycle();
@@ -151,6 +204,25 @@ public class PaddleDetectionFragment extends Fragment {
         binding = FragmentPaddleDetectionBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }
+
+    private Handler statsHandler = new Handler(Looper.getMainLooper());
+    private Runnable statsRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (minInferenceTime != Long.MAX_VALUE && maxInferenceTime > 0) {
+                Log.e("PaddleDetectionTime", "30秒内单帧推理最短耗时: " + minInferenceTime + " ms");
+                Log.e("PaddleDetectionTime", "30秒内单帧推理最长耗时: " + maxInferenceTime + " ms");
+            }
+
+            // 重置极值
+            minInferenceTime = Long.MAX_VALUE;
+            maxInferenceTime = 0;
+
+            // 每30秒执行一次
+            statsHandler.postDelayed(this, 1000 * 30);
+        }
+    };
+
 
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
@@ -189,6 +261,10 @@ public class PaddleDetectionFragment extends Fragment {
 
         // 设置按钮点击事件
         setupButtons();
+
+        // 启动定时器
+        lastResetTimestamp = System.currentTimeMillis();
+        statsHandler.post(statsRunnable);
     }
 
     private void setupScreenAndSystemUI() {
@@ -407,14 +483,24 @@ public class PaddleDetectionFragment extends Fragment {
     }
 
     // 绘制检测结果
-    private void drawDetectionResults(List<BaseDetection> detections) {
+    private void drawDetectionResults(List<BaseDetection> detections, long frameStartTime) {
         if (overlayHolder == null || !isAdded() || getActivity() == null) {
             Log.e(TAG, "绘制失败：overlayHolder为空或Fragment已分离");
             return;
         }
 
         // 添加日志，输出检测结果数量
-        Log.d(TAG, "开始绘制检测结果，共 " + (detections != null ? detections.size() : 0) + " 个物体");
+        Log.d("PaddleDetectionTime", "开始绘制检测结果，共 " + (detections != null ? detections.size() : 0) + " 个物体");
+
+        // 计算FPS
+        frameCount++;
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastFpsTimestamp >= 1000) { // 每秒更新一次FPS
+            float fps = frameCount * 1000 / (float)(currentTime - lastFpsTimestamp);
+            Log.d("PaddleDetectionTime", "当前FPS: " + fps);
+            frameCount = 0;
+            lastFpsTimestamp = currentTime;
+        }
 
         Canvas canvas = null;
         try {
@@ -453,6 +539,16 @@ public class PaddleDetectionFragment extends Fragment {
 
                     // 使用DetectionUtils绘制检测结果
                     DetectionUtils.drawDetections(canvas, detections, scaleX, scaleY);
+
+                    // 计算总延迟（从捕获到显示）
+                    long totalLatency = System.currentTimeMillis() - frameStartTime;
+                    // 打印单帧总延迟
+                    Log.d("PaddleDetectionTime", "总延迟时间: " + totalLatency + " ms");
+                    // 打印平均延迟（每100帧打印一次）
+                    if (latencyCount % 100 == 0 && latencyCount > 0) {
+                        long avgLatency = totalLatencyTime / latencyCount;
+                        Log.w("PaddleDetectionTime", "平均总延迟时间: " + avgLatency + " ms");
+                    }
                 } else {
                     Log.d(TAG, "没有检测结果可绘制");
                 }
@@ -570,6 +666,9 @@ public class PaddleDetectionFragment extends Fragment {
         releaseResources();
 
         binding = null;
+
+        // 停止定时器
+        statsHandler.removeCallbacks(statsRunnable);
     }
 
     private void releaseResources() {
