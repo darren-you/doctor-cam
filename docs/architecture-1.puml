@@ -1,0 +1,71 @@
+@startuml
+title doctor-cam - High-Level Architecture
+!pragma layout elk
+skinparam defaultFontName Arial
+skinparam wrapWidth 600
+skinparam dpi 180
+skinparam componentStyle rectangle
+
+package "Android App" {
+  [MainActivity / Fragments] as UI
+  [Camera Module] as Camera
+  [Preview Surface] as Preview
+  [PaddleDetectionFragment] as PaddleFrag
+  [Utils (Java)] as Utils
+  [Assets (model.nb, labels, configs)] as Assets
+  [Storage / Cache] as Cache
+}
+
+package "Native Layer (JNI / C++)" {
+  [Native Bridge (JNI)] as JNI
+  [Pipeline (C++)] as Pipeline
+  [Detector (C++ abstraction)] as Detector
+  [PaddleLite Runtime] as PaddleLite
+  [OpenCV (native libs)] as OpenCV
+}
+
+package "Model & Data" {
+  [Detection Model (.nb)] as ModelFile
+  [Label List] as Labels
+  [Pre/Post-process Params] as Params
+}
+
+UI --> PaddleFrag : user interaction / open camera
+Camera --> Preview : camera frames (YUV/RGBA)
+Preview --> PaddleFrag : frame callback (Bitmap/Mat)
+PaddleFrag --> Utils : copy model to cache on startup
+Assets --> Utils : read model/labels from assets
+Utils --> Cache : write model.nb and label.txt
+
+PaddleFrag --> JNI : call native Process(Mat/byte[])
+JNI --> Pipeline : forward to Pipeline::Process
+Pipeline --> Detector : call detector_->Process(...)
+Detector --> PaddleLite : build input tensor and run inference
+Detector --> OpenCV : resize, normalize, NMS, visualize
+PaddleLite --> ModelFile : load model.nb
+Detector --> Labels : read class mapping
+Pipeline --> JNI : return detections (boxes, scores, classes)
+JNI --> PaddleFrag : callback with results
+PaddleFrag --> UI : draw boxes/labels on Preview
+
+note right of Detector
+  Detector internals:
+  - Preprocess (resize, normalize, transpose)
+  - Inference (PaddleLite)
+  - Postprocess (NMS, threshold)
+  - Output conversion (object list)
+end note
+
+note left of OpenCV
+  OpenCV provides:
+  - Mat operations
+  - Image visualization (boxes/text)
+  - Optional DNN APIs as fallback
+end note
+
+database "Optional" {
+  [Saved Images / Logs]
+}
+PaddleFrag --> "Saved Images / Logs" : optionally save detection results
+
+@enduml

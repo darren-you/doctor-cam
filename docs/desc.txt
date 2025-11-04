@@ -1,0 +1,83 @@
+中文（简明架构描述，适用于SCI论文）
+概述：系统由设备采集、推理执行与可视化三大模块组成，面向移动/嵌入式平台，支持基于 ONNX 或 Paddle 格式的模型。设计目标是低延迟、资源复用和稳定的外设管理。
+
+1. 相机与设备
+- 采集接口：支持设备摄像头和 USB 摄像头（通过 USBMonitor 管理）。采用相机预览回调（YUV / RGBA）获取连续帧流。
+- 硬件配置：在初始化阶段选择最优预览分辨率与帧率以平衡延迟与准确度；使用相机参数（曝光/增益）进行必要的硬件级调整。
+- 同步与线程：采集在独立线程中运行，使用环形缓冲或队列写入帧缓冲，避免阻塞 UI 线程。
+
+2. 推理实现
+- 推理引擎：在移动端采用 PaddleLite 或 ONNX 运行时（依模型格式选择），封装为统一的 Detector 接口。模型在启动时从 assets 或外部存储加载到缓存并初始化运行时与 tensor。
+- 输入准备：预处理包含 resize、BGR↔RGB 转换、均值/方差归一化与维度变换（NHWC↔NCHW），尽量在原生层（C++）中完成以降低 JNI 开销。
+- 并发与资源：推理在独立工作线程或线程池中执行，使用固定数量的 CPU 线程和可选硬件加速（NNAPI、GPU、DSP）以控制功耗与延迟。
+- 管线封装：Pipeline 负责一次完整推理循环（预处理→推理→后处理→可视化数据打包），并统计性能（预处理/推理/后处理耗时）。
+
+3. 预览渲染
+- 渲染路径：Java 层接收经后处理的检测结果（边界框、关键点、语义掩码），使用 Canvas/OpenGL ES 在预览层叠加绘制；对高帧率场景，优先使用 GPU 渲染以减少主线程负载。
+- 双缓冲与合成：采用双缓冲或 SurfaceTexture + GLTexture 复合绘制，保证显示与推理解耦，避免因为绘制阻塞导致丢帧。
+- 可选保存：支持将带标注的帧写入文件（异步 IO），写入队列限速以避免阻塞主推理流程。
+
+4. USBMonitor 生命周期管理
+- 设备检测：USBMonitor 监听外设插拔事件（attach/detach），自动枚举并授权 USB 摄像头或采集卡。
+- 生命周期策略：设备连接时完成初始化（打开设备、配置分辨率、启动预览）；断开时优雅释放资源（停止采集、销毁流、释放缓冲）。
+- 容错与重试：在初始化失败或临时断连时采用指数退避和重试机制，向上层回报状态以便 UI 提示或切换后备摄像头。
+
+5. 帧缓冲复用
+- 复用策略：使用预分配的帧缓冲池（固定容量的 Mat 或 byte[] 池）以避免频繁分配 GC 开销和内存拷贝；生产者（相机）从池中取空缓冲写入，消费者（推理）处理完成后归还。
+- 零拷贝尽量化：在 JNI/本地层尽量保持指针传递或直接在 native 层操作 Mat 数据，减少 Java↔native 的额外内存复制。
+- 丢帧控制：当缓冲池满时采用最新帧替换策略（drop-old）或按优先级丢弃以保证低延迟。
+
+6. ONNX / Paddle 后处理流程
+- 通用后处理：对检测任务执行阈值过滤、NMS（Non-Maximum Suppression）、类别映射与坐标反变换（从模型输入尺度映射回原始图像）。
+- 格式差异处理：
+  - ONNX：根据导出时的输出格式（anchor-based / keypoint / segmentation），解析输出张量、解码边界框（使用对应的解码函数、IOU 计算）并执行 NMS。
+  - Paddle：使用 Paddle 模型输出约定（例如 paddledetection 的 bbox、score、label 输出），解析并按模型提供的后处理参数（scale、stride、anchors）进行解码与 NMS。
+- 性能优化：将后处理实现为本地 C++ 代码（向量化/并行化）以降低延迟，NMS 在可能时采用多线程分割类别或使用近似 NMS（Soft-NMS / GPU 加速）提高吞吐。
+- 兼容性与参数化：后处理参数（score threshold、NMS IoU、输入尺度）可配置，支持在运行时切换 ONNX / Paddle 流水线而无需重启应用。
+
+结论（要点）
+- 通过分层设计（采集→Pipeline→推理→渲染）实现解耦，保证可替换推理后端与灵活的外设管理。
+- 使用帧缓冲池与本地化处理最大限度减少内存分配与 JNI 交互开销，从而降低延迟并提升稳定性。
+- 将推理、后处理与渲染解耦并放在独立线程中，配合 USBMonitor 的健壮生命周期策略，确保在移动/嵌入式场景下的实时性与鲁棒性。
+
+English (Concise architecture description for an SCI paper)
+Overview: The system is organized into three layers—device capture, inference execution, and visualization—optimized for mobile/embedded platforms and supporting ONNX or Paddle model formats. The design priorities are low latency, resource reuse, and robust peripheral handling.
+
+1. Camera and Device
+- Capture interface: Supports built-in camera and USB cameras (managed by USBMonitor). Continuous frames are acquired through preview callbacks (YUV / RGBA).
+- Hardware configuration: Select optimal preview resolution and frame rate at initialization to balance latency and accuracy; apply hardware-level parameters (exposure/gain) when needed.
+- Synchronization & threading: Capture runs on a dedicated thread and writes to a ring buffer or queue to avoid blocking the UI thread.
+
+2. Inference Implementation
+- Inference engine: Uses PaddleLite or an ONNX runtime on-device, wrapped by a unified Detector interface. Models are loaded from assets or external storage into cache and the runtime initialized at startup.
+- Input preparation: Preprocessing (resize, BGR↔RGB, mean/std normalization, NHWC↔NCHW transpose) is executed in native (C++) code where possible to minimize JNI overhead.
+- Concurrency & resources: Inference runs on a dedicated worker thread or thread pool, with fixed CPU threads and optional hardware accelerators (NNAPI/GPU/DSP) to control power and latency.
+- Pipeline encapsulation: The Pipeline class wraps a complete inference iteration (preprocess → infer → postprocess → pack visualization data) and records timing metrics.
+
+3. Preview Rendering
+- Rendering path: Java layer receives post-processed results (boxes, keypoints, masks) and overlays them using Canvas or OpenGL ES; GPU rendering is preferred for high-frame scenarios to reduce main-thread load.
+- Double buffering & composition: Use double buffers or SurfaceTexture + GLTexture composition to decouple display from inference and prevent dropped frames due to rendering blocking.
+- Optional persistence: Annotated frames are saved asynchronously to disk with write-rate limiting to avoid blocking inference.
+
+4. USBMonitor Lifecycle
+- Device detection: USBMonitor listens for attach/detach events and handles enumeration and authorization for USB cameras/capture devices.
+- Lifecycle policy: On connect, initialize device (open, configure resolution, start preview); on disconnect, gracefully release resources (stop capture, destroy streams, free buffers).
+- Fault tolerance: Use exponential backoff and retry on initialization failures or transient disconnects; propagate status to the UI for fallback or alerts.
+
+5. Frame Buffer Reuse
+- Reuse strategy: Maintain a preallocated buffer pool (fixed-size Mat or byte[] array) to avoid frequent memory allocation, GC pressure and copies; producer (camera) acquires an empty buffer to write, consumer (inference) returns it after processing.
+- Minimize copies: Keep operations native (C++) and pass pointers or direct buffers across JNI to reduce Java↔native copying.
+- Frame drop control: When pool is full, apply drop-old or priority-based dropping to preserve low latency (prefer newest frames).
+
+6. ONNX / Paddle Post-processing Flow
+- Common postprocessing: For detection tasks perform score thresholding, NMS, class mapping and coordinate inverse transform (map model output coordinates back to original image space).
+- Format-specific handling:
+  - ONNX: Parse output tensors according to export type (anchor-based, keypoint, segmentation), decode boxes using model-specific decoders and apply NMS.
+  - Paddle: Parse Paddle detection outputs (bbox, score, label) and decode using provided scales/anchors/strides prior to NMS.
+- Performance optimizations: Implement postprocessing in native C++ with vectorization and parallelization; use multi-threaded per-class NMS or approximate/GPU-accelerated NMS (Soft-NMS) where applicable.
+- Parameterization: Expose postprocessing parameters (score threshold, NMS IoU, input scale) at runtime to allow switching between ONNX and Paddle pipelines without restarting the app.
+
+Key takeaways
+- Layered architecture (capture → Pipeline → inference → render) enables decoupling and easy backend replacement.
+- Buffer pooling and native processing minimize allocations and JNI overhead, reducing latency and improving stability.
+- Decoupled inference, post-processing and rendering with robust USBMonitor lifecycle handling ensure real-time performance and resilience in mobile/embedded deployments.

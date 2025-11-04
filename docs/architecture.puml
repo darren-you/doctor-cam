@@ -1,0 +1,105 @@
+@startuml
+title DoctorCam - 相机与设备 / 推理实现 / 预览渲染（含USBMonitor生命周期、帧缓冲复用、后处理流程）
+!pragma layout elk
+
+skinparam defaultFontName PingFang SC
+skinparam ArrowColor #3C78D8
+skinparam ActivityBackgroundColor #F5F7FA
+skinparam ActivityBorderColor #B0BEC5
+skinparam NoteBackgroundColor #FFFBE6
+skinparam NoteBorderColor #E0C385
+
+actor User
+participant MainActivity
+participant USBMonitor
+participant UVCCamera
+participant IFrameCallback
+participant BufferPool as BP
+participant ImageProcessingUtils as IPU
+participant OnnxYOLODetector as ONNX
+participant PaddleDetector as Paddle
+participant DetectionUtils as DU
+participant OverlaySurface as Overlay
+participant StorageUtils as SU
+
+== 设备连接与预览 ==
+User -> MainActivity: 打开设备列表 / 选择设备
+MainActivity -> USBMonitor: register() 注册监听
+MainActivity -> USBMonitor: requestPermission(device)
+USBMonitor -> MainActivity: onConnect(device)
+MainActivity -> UVCCamera: open(device)
+UVCCamera -> UVCCamera: setPreviewSize(width,height)
+UVCCamera -> UVCCamera: setFrameCallback(IFrameCallback)
+UVCCamera -> UVCCamera: startPreview()
+UVCCamera -> IFrameCallback: onFrame(ByteBuffer) «循环»
+
+IFrameCallback -> BP: 获取/复用缓冲（ByteBuffer/Bitmap）
+
+alt ONNX 路径
+  BP -> IPU: ByteBuffer → Bitmap 转换
+  IPU -> ONNX: 预处理（letterbox 320x320、归一化 CHW）
+  ONNX -> ONNX: OrtSession.run(images)
+  ONNX -> DU: 后处理（阈值、NMS、坐标映射）
+  DU -> Overlay: drawDetectionsOnBitmap(canvas, detections)
+else PaddleLite 路径
+  BP -> Paddle: Java → JNI → C++（Mat/byte[]）
+  Paddle -> Paddle: OpenCV 预处理（resize/normalize）
+  Paddle -> Paddle: PaddleLite 推理
+  Paddle -> DU: 后处理（阈值、NMS）
+  DU -> Overlay: drawDetectionsOnBitmap(canvas, detections)
+end
+
+User -> Overlay: 点击捕获
+Overlay -> SU: 保存至相册/媒体库
+
+== USBMonitor 生命周期 ==
+note over USBMonitor
+  生命周期关键事件：
+  - 创建：构造 USBMonitor
+  - 注册：register() 开始监听插拔
+  - 权限：requestPermission() 请求使用权限
+  - 连接：onAttach/onConnect 打开设备并建立通信
+  - 断开：onDetach/onDisconnect 释放句柄
+  - 注销：unregister() 停止监听
+  - 资源：release() 清理资源
+end note
+
+== 帧缓冲复用策略 ==
+note over BP
+  目标：降低内存压力与 GC 次数，提高帧率
+  - 预分配 ByteBuffer/Bitmap 池（按分辨率）
+  - 循环复用缓冲，避免每帧 new
+  - 尽量在原位转换（YUV→RGBA），减少拷贝
+  - 推理与渲染后及时归还/回收
+end note
+
+== ONNX 后处理细节 ==
+note over ONNX
+  输出处理（以 OnnxYOLODetector 为例）：
+  - 解析 float[][][] 输出（bbox[x,y,w,h], obj, classes）
+  - 计算最终置信度：obj×max(class)
+  - 过滤阈值（CONFIDENCE_THRESHOLD）并排序
+  - 类内 NMS（IoU≈0.6），保留高分框
+  - 坐标映射回原图：使用 letterbox 的 scale/offsetX/offsetY
+  - 生成 List<BaseDetection>（bbox, className, confidence）
+end note
+
+== Paddle 后处理细节 ==
+note over Paddle
+  C++ 检测器（PaddleDetector JNI）：
+  - OpenCV 预处理（resize/normalize/transpose）
+  - PaddleLite 推理，取 logits/boxes
+  - 阈值过滤 + 类内 NMS
+  - 转换为 Java 可读结构后回传
+end note
+
+== 渲染与交互 ==
+note over Overlay
+  叠加层绘制：
+  - SurfaceHolder.lockCanvas/clear
+  - DetectionUtils 统一绘制框/标签/分数
+  - unlockCanvasAndPost 提交
+  - 横屏与沉浸式由 SystemBarUtils 配置
+end note
+
+@enduml
