@@ -2,7 +2,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
@@ -110,12 +109,15 @@ if (clientVersionPending) {
 
 android {
     namespace = "cn.darrenyou.doctorcam"
-    compileSdk = 36
+    compileSdk {
+        version = release(37) { minorApiLevel = 2 }
+    }
+    buildToolsVersion = "37.0.0"
 
     defaultConfig {
         applicationId = "cn.darrenyou.doctorcam"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = clientVersionCode
         versionName = clientVersion
         manifestPlaceholders["clientLocalValidation"] = clientLocalValidation.toString()
@@ -158,7 +160,7 @@ android {
     }
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
-        // AGP 8.13 先合并本项目 Native 输出，保留 NDK 30 的唯一共享 C++ 运行库。
+        // 保留本项目 NDK 30 的唯一共享 C++ 运行库，制品门禁回读实际摘要。
         jniLibs.pickFirsts += "lib/arm64-v8a/libc++_shared.so"
     }
 }
@@ -182,12 +184,19 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.android)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
     implementation(libs.opencv)
     implementation(libs.uvc.camera)
     implementation(libs.onnx.runtime)
+
+    constraints {
+        implementation(libs.androidx.appcompat)
+        implementation(libs.androidx.annotation)
+        implementation(libs.hutool.core)
+    }
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
