@@ -10,7 +10,7 @@
 | Kotlin / JVM | Kotlin 2.4.21，AGP 内置 Kotlin；Java / Kotlin 目标 17，本轮构建使用 JDK 21 |
 | UI 与状态 | Compose BOM 2026.09.00、Material 3、Navigation Compose 2.10.2、Lifecycle 2.11.0 / ViewModel / StateFlow |
 | 依赖装配 | Hilt 2.60.1、KSP 2.3.12、Version Catalog；显式 Coroutines 1.11.0 |
-| Android SDK | compile 37.2 / target 37，min 26；显式 Build Tools 37.0.0 |
+| Android SDK | compile 37.2 / target 37，min 26；显式 Build Tools 37.0.0，官方 Command-line Tools 23 |
 | Native | NDK 30.0.16248370、CMake 4.1.2、C++17、arm64-v8a |
 | OpenCV | org.opencv:opencv:5.0.0.1，官方 Java / Native / Prefab；运行 API 版本 5.0.0 |
 | Paddle Lite | 官方最新 v2.14-rc with_extra；固定制品 URL 与整包 SHA-256，构建时仅准备头文件和 bundled 静态库 |
@@ -49,7 +49,7 @@ cd doctor-cam
 git submodule update --init fast-deploy-core
 ```
 
-设置本机 `JAVA_HOME` 与 `ANDROID_HOME`，准备明确的 SDK 组件。生成的 Android APK 仅为 ARM64；本轮删除的是产品仓库中的旧 SDK 文件，不会卸载其他产品可能消费的本机 SDK 组件。
+设置本机 `JAVA_HOME` 与 `ANDROID_HOME`，使用官方 Command-line Tools 23 准备明确的 SDK 组件；37.2 平台的 `MinToolsRev=22`，旧安装器不能作为当前准备基线。生成的 Android APK 仅为 ARM64；本轮删除的是产品仓库中的旧 SDK 文件，不会卸载其他产品可能消费的本机 SDK 组件。
 
 ```bash
 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
