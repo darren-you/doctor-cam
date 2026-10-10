@@ -3,7 +3,6 @@ package cn.darrenyou.doctorcam
 import android.content.pm.ActivityInfo
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription

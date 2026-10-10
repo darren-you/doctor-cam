@@ -6,7 +6,7 @@ DoctorCam 使用 Kotlin、Compose、Material 3、类型安全 Navigation Compose
 
 [DoctorCamApplication](../../../app/src/main/java/cn/darrenyou/doctorcam/DoctorCamApplication.kt)建立 Hilt 依赖图，[MainActivity](../../../app/src/main/java/cn/darrenyou/doctorcam/MainActivity.kt)负责单 Activity、边到边系统栏与 Material 3 主题。[DoctorCamApp](../../../app/src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt)使用类型安全 `DevicesRoute`、`CameraRoute`、`TestRoute` 组织 Compose 导航。
 
-[设备列表页](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/devices/DevicesPage.kt)通过 ViewModel 收集实际 USB 视频设备。轻点进入普通预览，长按进入 Paddle 检测。导航携带设备 ID、VID、PID 与检测模式；相机权限缺失时由 Activity Result API 请求，授权后再次核对设备是否仍存在。
+[设备列表页](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/devices/DevicesPage.kt)通过 ViewModel 收集实际 USB 视频设备。轻点进入普通预览，长按进入 Paddle 检测。导航携带设备 ID、VID、PID 与检测模式；进入预览前由 Activity Result API 申请所需权限，Android 8 / 9 同时要求相机与存储权限，Android 10 及以上只要求相机权限。全部权限授予后再次核对所选设备是否仍存在。
 
 [相机页](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/camera/CameraPage.kt)通过 `AndroidView` 挂载 TextureView。UI 创建 Surface 后将所有权移交相机控制器；控制器在设备线程停止预览并释放 Surface，再回调 UI 释放所属 SurfaceTexture。`onSurfaceTextureDestroyed` 返回 `false`，避免框架提前释放仍被 Native 使用的纹理；迟到的旧视图回调按预期 Surface 对象隔离。页面按真实帧比例居中显示预览，Compose Canvas 根据检测结果的原图尺寸缩放绘制框和标签。没有完整帧或正在保存时，抓拍按钮不可用。
 
@@ -46,7 +46,7 @@ Paddle 使用 `paddle/model.nb`、`paddle/doctor_label_list.txt` 和 `initDefaul
 
 ## 相册与调试入口
 
-[MediaRepository](../../../app/src/main/java/cn/darrenyou/doctorcam/core/media/MediaRepository.kt)在 IO 上绘制同帧检测结果，以质量 100 的 JPEG 写入系统 Pictures 相册，返回真实 URI 或失败。Android 10 及以上用 MediaStore 的待完成状态保护未写完的图片；Android 8 / 9 的旧存储权限按实际 API 请求。编码后、提交前检查协程取消，尚未提交的 MediaStore 条目或文件会清理；提交成功后的取消属于已完成保存边界。独立输入位图在成功、失败或取消时都回收，不建立图片上传或数据库链路。
+[MediaRepository](../../../app/src/main/java/cn/darrenyou/doctorcam/core/media/MediaRepository.kt)在 IO 上绘制同帧检测结果，以质量 100 的 JPEG 写入系统 Pictures 相册，返回真实 URI 或失败。Android 10 及以上用 MediaStore 的待完成状态保护未写完的图片；Android 8 / 9 的存储权限在进入预览前申请，避免保存时的授权对话框暂停相机并丢失当前帧。若该权限失效，相机页提示返回设备列表重新授权，不在抓拍时弹出权限对话框。编码后、提交前检查协程取消，尚未提交的 MediaStore 条目或文件会清理；提交成功后的取消属于已完成保存边界。独立输入位图在成功、失败或取消时都回收，不建立图片上传或数据库链路。
 
 [Debug Panel](../../../app/src/main/java/cn/darrenyou/doctorcam/core/ui/components/DebugPanel.kt)由应用组合根挂载在全局最高层，默认展开、可拖动和折叠，并约束到当前安全区域。[TestPage](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/test/TestPage.kt)通过真实类型安全路由进入，展示构建与设备信息，提供返回业务页面的按钮；面板在该页仍可交互。唯一 `_debug` 字面量与 Release 门禁由[开发说明](../../operations/android-app/development.md)定义。
 

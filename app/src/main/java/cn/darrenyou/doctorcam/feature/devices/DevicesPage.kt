@@ -2,6 +2,7 @@ package cn.darrenyou.doctorcam.feature.devices
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -51,24 +52,34 @@ fun DevicesPage(onOpenCamera: (CameraRoute) -> Unit, viewModel: DevicesViewModel
     var pendingProductId by rememberSaveable { mutableStateOf(0) }
     var pendingDetection by rememberSaveable { mutableStateOf(false) }
     var permissionMessage by remember { mutableStateOf<String?>(null) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+    val requiredPermissions = remember {
+        if (Build.VERSION.SDK_INT <= 28) arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        else arrayOf(Manifest.permission.CAMERA)
+    }
+    fun hasRequiredPermissions() = requiredPermissions.all {
+        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+    }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        val granted = hasRequiredPermissions()
         val route = pendingDeviceId?.let { CameraRoute(it, pendingVendorId, pendingProductId, pendingDetection) }
         pendingDeviceId = null
         if (granted && route != null && devices.any {
             it.deviceId == route.deviceId && it.vendorId == route.vendorId && it.productId == route.productId
         }) onOpenCamera(route)
-        else permissionMessage = if (granted) "所选摄像头已断开" else "请允许相机权限后再次选择摄像头"
+        else permissionMessage = if (granted) "所选摄像头已断开"
+            else if (Build.VERSION.SDK_INT <= 28) "请允许相机与存储权限后再次选择摄像头"
+            else "请允许相机权限后再次选择摄像头"
     }
     fun open(route: CameraRoute) {
         permissionMessage = null
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+        if (hasRequiredPermissions()) {
             onOpenCamera(route)
         } else {
             pendingDeviceId = route.deviceId
             pendingVendorId = route.vendorId
             pendingProductId = route.productId
             pendingDetection = route.detection
-            launcher.launch(Manifest.permission.CAMERA)
+            launcher.launch(requiredPermissions)
         }
     }
     Scaffold(

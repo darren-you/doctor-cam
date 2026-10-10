@@ -39,7 +39,9 @@ class CameraViewModel @Inject constructor(
         resumed = false
         controller.close()
     }
-    fun storagePermissionDenied() { mutableMessage.value = "未获得存储权限，图片未保存" }
+    fun reportStoragePermissionMissing() {
+        mutableMessage.value = "存储权限不可用，图片未保存；请返回设备列表重新授权"
+    }
     fun save() {
         if (mutableSaving.value || !cameraState.value.hasFrame) return
         mutableSaving.value = true

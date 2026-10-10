@@ -7,8 +7,6 @@ import android.os.Build
 import android.content.pm.PackageManager
 import android.view.Surface
 import android.view.TextureView
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -69,9 +67,6 @@ fun CameraPage(route: CameraRoute, onBack: () -> Unit, viewModel: CameraViewMode
     val message by viewModel.message.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
-    val storageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) viewModel.save() else viewModel.storagePermissionDenied()
-    }
     DisposableEffect(lifecycleOwner, viewModel) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) viewModel.resume()
@@ -113,7 +108,7 @@ fun CameraPage(route: CameraRoute, onBack: () -> Unit, viewModel: CameraViewMode
                     enabled = state.hasFrame && !saving,
                     onClick = {
                         if (Build.VERSION.SDK_INT <= 28 && ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
-                            storageLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                            viewModel.reportStoragePermissionMissing()
                         else viewModel.save()
                     },
                 ) { Text(if (saving) "正在保存…" else "抓拍并保存到相册") }

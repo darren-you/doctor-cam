@@ -6,14 +6,15 @@
 
 本次实际产物包括：
 
-- [fig4-2-inference-compat.drawio](/Users/darrenyou/Projects/doctor-cam/docs/paper/fig4-2-inference-compat.drawio)
-- [fig4-2-inference-compat.png](/Users/darrenyou/Projects/doctor-cam/docs/paper/fig4-2-inference-compat.png)
-- [fig4-2-inference-compat.svg](/Users/darrenyou/Projects/doctor-cam/docs/paper/fig4-2-inference-compat.svg)
-- [paper-new.docx](/Users/darrenyou/Projects/doctor-cam/docs/paper/paper-new.docx)
+- [fig4-2-inference-compat.drawio](../paper/fig4-2-inference-compat.drawio)
+- [fig4-2-inference-compat.png](../paper/fig4-2-inference-compat.png)
+- [paper-new.docx](../paper/paper-new.docx)
+
+本文保留历史绘图流程；当时使用的 SVG 与独立 mxGraph XML 未保存在当前仓库，现有产物以上述文件为准，不作为当前应用架构或运行验收证据。
 
 ## 2. MCP 配置
 
-工作区中的 MCP 配置文件是 [mcp.json](/Users/darrenyou/Projects/doctor-cam/.vscode/mcp.json)：
+仓库中的 MCP 配置文件是 [mcp.json](../../.vscode/mcp.json)：
 
 ```json
 {
@@ -88,11 +89,11 @@
 2. 生成完整的 `mxGraphModel XML`。
 3. 通过 MCP 调用 `start_session + create_new_diagram + export_diagram(format=drawio)` 导出可编辑源图。
 4. 同步生成论文使用的 `PNG/SVG` 文件。
-5. 将 PNG 回写到 [paper-new.docx](/Users/darrenyou/Projects/doctor-cam/docs/paper/paper-new.docx) 中 `图4-2` 对应的内嵌图片资源。
+5. 将 PNG 回写到 [paper-new.docx](../paper/paper-new.docx) 中 `图4-2` 对应的内嵌图片资源。
 
 ## 6. 可复用脚本示例
 
-下面的示例展示如何读取 [mcp.json](/Users/darrenyou/Projects/doctor-cam/.vscode/mcp.json)，连接 `drawio` MCP 服务，并导出 `.drawio` 文件。
+下面的示例展示如何读取 [mcp.json](../../.vscode/mcp.json)，连接 `drawio` MCP 服务，并导出 `.drawio` 文件。从仓根运行，事先准备示例所需的独立 mxGraph XML；该 XML 不在当前仓库中。
 
 ```js
 import fs from "node:fs/promises";
@@ -100,7 +101,7 @@ import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-const root = "/Users/darrenyou/Projects/doctor-cam";
+const root = process.cwd();
 const configPath = path.join(root, ".vscode", "mcp.json");
 const xmlPath = path.join(root, "docs", "paper", "fig4-2-inference-compat.mxgraph.xml");
 const outPath = path.join(root, "docs", "paper", "fig4-2-inference-compat.drawio");
@@ -214,16 +215,16 @@ try {
 本次相关文件如下：
 
 - MCP 配置：
-  [mcp.json](/Users/darrenyou/Projects/doctor-cam/.vscode/mcp.json)
+  [mcp.json](../../.vscode/mcp.json)
 - draw.io 可编辑源图：
-  [fig4-2-inference-compat.drawio](/Users/darrenyou/Projects/doctor-cam/docs/paper/fig4-2-inference-compat.drawio)
+  [fig4-2-inference-compat.drawio](../paper/fig4-2-inference-compat.drawio)
 - mxGraph 原始结构：
-  [fig4-2-inference-compat.mxgraph.xml](/Users/darrenyou/Projects/doctor-cam/docs/paper/fig4-2-inference-compat.mxgraph.xml)
+  `fig4-2-inference-compat.mxgraph.xml`（未入当前仓库）
 - 论文图片：
-  [fig4-2-inference-compat.png](/Users/darrenyou/Projects/doctor-cam/docs/paper/fig4-2-inference-compat.png)
-  [fig4-2-inference-compat.svg](/Users/darrenyou/Projects/doctor-cam/docs/paper/fig4-2-inference-compat.svg)
+  [fig4-2-inference-compat.png](../paper/fig4-2-inference-compat.png)
+  `fig4-2-inference-compat.svg`（未入当前仓库）
 - 已写回图片的论文文件：
-  [paper-new.docx](/Users/darrenyou/Projects/doctor-cam/docs/paper/paper-new.docx)
+  [paper-new.docx](../paper/paper-new.docx)
 
 ## 11. 结论
 
