@@ -17,7 +17,7 @@ val javaExecutableName = if (System.getProperty("os.name").lowercase().contains(
 }
 val javaExecutable = file("${System.getProperty("java.home")}/bin/$javaExecutableName")
 
-val verifyReleaseDebugDisabled by tasks.registering(Exec::class) {
+val verifyReleaseDebugDisabled = tasks.register<Exec>("verifyReleaseDebugDisabled") {
     group = "verification"
     description = "检查 Release 构建的 _debug 开关"
     workingDir(rootProject.projectDir)
@@ -29,7 +29,7 @@ val verifyReleaseDebugDisabled by tasks.registering(Exec::class) {
 
 val releaseDebugFixturePath = providers.gradleProperty("releaseDebugFixture")
     .orElse("app/src/testFixtures/release-debug-false.kt").get()
-val verifyReleaseDebugFixture by tasks.registering(Exec::class) {
+val verifyReleaseDebugFixture = tasks.register<Exec>("verifyReleaseDebugFixture") {
     group = "verification"
     description = "使用 fixture 验证 Release _debug 检查器"
     workingDir(rootProject.projectDir)
@@ -42,7 +42,7 @@ val verifyReleaseDebugFixture by tasks.registering(Exec::class) {
 val paddleLiteSdkDirectory = layout.buildDirectory.dir("native-sdk/paddle-lite")
 val paddleLiteSdkPath = paddleLiteSdkDirectory.get().asFile.absolutePath
 val paddleLitePreparationScript = rootProject.file("tool/prepare_paddle_lite.py")
-val preparePaddleLiteSdk by tasks.registering(Exec::class) {
+val preparePaddleLiteSdk = tasks.register<Exec>("preparePaddleLiteSdk") {
     group = "build setup"
     description = "下载并校验固定版本的官方 Paddle Lite ARM64 SDK"
     commandLine("python3", paddleLitePreparationScript, "--output-dir", paddleLiteSdkPath)
@@ -60,7 +60,7 @@ tasks.matching {
 val nativeAlignmentChecker = rootProject.file("tool/check_native_alignment.py")
 val debugApk = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk")
 val debugNativeAlignmentReport = layout.buildDirectory.file("reports/native-alignment-debug.json")
-val verifyDebugNativeAlignment by tasks.registering(Exec::class) {
+val verifyDebugNativeAlignment = tasks.register<Exec>("verifyDebugNativeAlignment") {
     group = "verification"
     description = "检查 Debug APK 全部 Native 库的 16 KiB ELF 与 ZIP 对齐"
     dependsOn("assembleDebug")
@@ -171,7 +171,7 @@ kotlin {
 
 dependencies {
     implementation(libs.androidx.core)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
