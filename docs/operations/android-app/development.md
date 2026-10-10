@@ -149,14 +149,14 @@ java -jar <bundletool-all.jar> dump config \
 
 [检查脚本](../../../tool/check_native_alignment.py)检查全部 ELF LOAD 段对齐、offset / address 同余、RELRO 保护页与其他可写段的隔离，以及 APK 中未压缩 SO 的真实数据偏移。完整 JSON 写入 `app/build/reports/native-alignment-debug.json`。RELRO 按 [Android linker 的真实 mprotect 语义](https://android.googlesource.com/platform/bionic/+/refs/heads/android16-release/linker/linker_phdr.cpp)向页边界取整；允许 lld 留出的隔离间隙，不能仅凭原末端余数拒绝合规 SDK。AAB 的 `uncompress_native_libraries` 必须启用且 `alignment` 为 `PAGE_ALIGNMENT_16K`。本地 Debug AAB 同样只用于验证，不进入正式分发。
 
-应用在 Manifest 声明 `android:pageSizeCompat="disabled"`，拒绝借助 Android 16 的兼容模式加载旧 4 KiB 库。按 [Android 官方页大小指导](https://developer.android.com/guide/practices/page-sizes)准备独立测试环境：
+应用在 Manifest 声明 `android:pageSizeCompat="disabled"`，拒绝借助 Android 16 的兼容模式加载旧 4 KiB 库。按 [Android 官方页大小指导](https://developer.android.com/guide/practices/page-sizes)准备独立测试环境。本机 Apple M4 使用官方稳定 Emulator 37.2.12 与 Android 17 / API 37.0 的正式 ARM64 16 KiB 镜像；应用 compile / target SDK 仍为模板的 36：
 
 ```bash
 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-  "system-images;android-36;google_apis_ps16k;arm64-v8a"
+  "emulator" "system-images;android-37.0;google_apis_ps16k;arm64-v8a"
 "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
-  -n doctor-cam-api36-16k-arm64 -k "system-images;android-36;google_apis_ps16k;arm64-v8a" -d pixel_8
-"$ANDROID_HOME/emulator/emulator" -avd doctor-cam-api36-16k-arm64
+  -n doctor-cam-api37-16k-arm64 -k "system-images;android-37.0;google_apis_ps16k;arm64-v8a" -d pixel_8
+"$ANDROID_HOME/emulator/emulator" -avd doctor-cam-api37-16k-arm64
 adb -s <16k-serial> shell getconf PAGE_SIZE
 ```
 
@@ -170,3 +170,5 @@ adb -s <16k-serial> shell getprop pm.16kb.app_compat.disabled
 ```
 
 在真正的 16 KiB AVD 和原 4 KiB Pixel 上安装同一 Debug / instrumentation APK 并运行上述 10 条回归，检查 UVC Native 构造、OpenCV、原 Paddle / ONNX 模型、UI、相册与冷启动。模拟器没有真实 UVC 摄像头，测试通过后仍保留硬件验收边界。
+
+API 36 的 `google_apis_ps16k` rev7 在本机 M4 上暴露 `SVE=0 / SVE2=1`，OpenCV 5 内置 KleidiCV 据此执行 `RDVL` 后触发 SIGILL；单独升级 Emulator 仍可复现。该镜像的 6.6.66 内核未包含 [Linux 的 SVE 能力过滤修复](https://kernel.googlesource.com/pub/scm/linux/kernel/git/stable/stable-queue/+/refs/tags/v6.12.41/releases/6.13.3/arm64-filter-out-sve-hwcaps-when-feat_sve-isn-t-implemented.patch)。API 37.0 rev7 的 6.12.81 内核已在 [真实 cpufeature 实现](https://android.googlesource.com/kernel/common/+/4f69fc7b210c/arch/arm64/kernel/cpufeature.c)中先检查 SVE 支持，再声明 SVE2；因此选用该正式测试镜像。遇到相同现象应核对客体内核与 `AT_HWCAP` / `AT_HWCAP2`，不要修改应用 CPU 分派或修补 SDK 二进制。

@@ -124,6 +124,7 @@ def main():
     print(f"  status   {'passed' if report['passed'] else 'failed'}")
     if arguments.report:
         print(f"  report   {arguments.report}")
+    sys.stdout.flush()
     if report["errors"]:
         print("  reason   " + "\n           ".join(report["errors"]), file=sys.stderr)
     return 0 if report["passed"] else 1
