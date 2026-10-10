@@ -293,7 +293,7 @@ androidComponents {
         if (variant.buildType == "release") {
             val output = providers.environmentVariable("FAST_DEPLOY_CLIENT_VERSION_PREPARATION_FILE").orNull
             val arguments = mutableListOf<Any>(
-                "python3", clientVersionTool, "prepare", "--project-root", rootProject.projectDir,
+                "python3", clientVersionTool, "prepare-build-input", "--project-root", rootProject.projectDir,
                 "--platform", "android", "--application-id", variant.applicationId.get(),
                 "--variant", variant.name, "--output", output.orEmpty(),
             )
