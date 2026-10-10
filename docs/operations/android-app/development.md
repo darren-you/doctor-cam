@@ -117,9 +117,9 @@ Debug 共 10 条 instrumentation 用例，Release 共 8 条；其中 7 条 Nativ
 
 ## 版本与 Release 门禁
 
-[release.json](../../../release.json)只维护人工三段版本。Gradle 消费仓内固定 Core 的 `shared/client_version.py`，本地构建使用验证编号 `1` 并写入 `client_local_validation=true` 与空 `client_run_id`；构建不修改版本文件或提交 Git。
+[release.json](../../../release.json)只声明初始／最低目标版本 `1.0.0`。Gradle 消费仓内固定 Core 的 `shared/client_version.py`，本地构建使用验证编号 `1` 并写入 `client_local_validation=true` 与空 `client_run_id`；构建不修改版本文件或提交 Git。
 
-正式构建必须读取 Panel 分配的冻结编号快照，并校验真实 variant、安装身份、ABI 和版本。缺少快照时只允许前置检查与准备，禁止产包。`prepareReleaseClientVersion` 只生成准备事实，不分配正式编号或建立正式发布任务。
+正式构建必须读取 Core 分配的冻结版本快照，并校验真实 variant、安装身份、ABI 和版本。缺少快照时只允许前置检查与准备，禁止产包。`prepareReleaseClientVersion` 只生成准备事实，不分配正式编号或建立正式发布任务。
 
 [DoctorCamApp.kt](../../../app/src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt)中唯一的 `_debug` 字面量控制调试入口：开发模式使用 `true`，正式发布源码使用 `false`。所有 Release variant 在编译前调用同一 `verifyReleaseDebugDisabled`；编号准备也依赖该门禁。缺失、重复、非字面量或值为 `true` 时明确失败，须由维护者显式改为唯一 `false`。
 
@@ -134,7 +134,7 @@ bash tool/test_check_release_debug.sh
 
 [deploy_config.sh](../../../deploy_config.sh)是本仓正式配置入口。Fast Deploy Job `doctor-cam-android-app` 只接受 `prod`，默认制品为 `official / apk`，实际 variant 为 `release`、架构为 `arm64-v8a`，安装身份保持 `cn.darrenyou.doctorcam`。Job 采用 `exclusive / isolated / store`，在 `mac-ci-1` 构建，不修改 Git，也没有部署设备维度；固定 Core 的默认 Android 流水线负责准备、编号、构建、登记与校验。
 
-历史源码和旧本地 Release 输出元数据只证明曾使用 `versionCode=1`、`versionName=1.0`，不能证明正式渠道发行或既有签名身份。首次正式发布保留已知编号 `1` 的高水位，按统一版本合同离线初始化 Panel 的 Android 安装身份，再由实际活动 build stage 分配编号。当前人工版本为 `1.0.0`，正式编号以 Panel 本次冻结快照及最终 APK 回读为准，不在文档或源码预填下一编号，也不建立产品私有编号算法。
+历史源码和旧本地 Release 输出元数据只证明曾使用 `versionCode=1`、`versionName=1.0`，不能证明正式渠道发行或既有签名身份。首次正式发布保留已知编号 `1` 的高水位，按统一版本合同离线初始化 Core 的 Android 安装身份，再由实际活动 build stage 分配编号。当前声明基线为 `1.0.0`，正式编号以 Core 本次冻结版本快照及最终 APK 回读为准，不在文档或源码预填下一编号，也不建立产品私有编号算法。
 
 签名材料的唯一事实源为 `secret-data/profiles/doctor-cam/android-app/shared.prod.env`。配置通过仓内固定 Core 的 Profile loader 读取本次冻结快照，消费以下四个字段，不允许外部文件覆盖：
 
@@ -145,7 +145,7 @@ bash tool/test_check_release_debug.sh
 
 PKCS12 alias 固定为 `doctor-cam`；首次正式证书的公开 SHA-256 为 `0c8472fdcf61d45a66500368da43f2c254eca5dc4bd5be4ca0334b170376fbdc`。[签名准备脚本](../../../tool/prepare_release_signing.py)在构建目录以受限文件权限物化 PKCS12，通过 `keytool` 从实际证书字节核对摘要；密码经环境变量传入，不打印签名秘密，构建产物不提交 Git。
 
-Release 编号准备与编译都依赖同一 Debug 静态门禁及签名准备。`assembleRelease` 必须等待 [最终 APK 检查](../../../tool/check_release_apk.py)与 [Native 对齐检查](../../../tool/check_native_alignment.py)通过：只有一个正式签名者、证书匹配冻结 Profile、`debuggable=false`、`testOnly=false`，全部 Native 库满足 16 KiB 合同。Core 另从最终 Manifest 核对 `versionName`、Panel 分配的整数 `versionCode`、安装身份、`client_local_validation=false` 与当前 `client_run_id`，再冻结制品摘要。
+Release 编号准备与编译都依赖同一 Debug 静态门禁及签名准备。`assembleRelease` 必须等待 [最终 APK 检查](../../../tool/check_release_apk.py)与 [Native 对齐检查](../../../tool/check_native_alignment.py)通过：只有一个正式签名者、证书匹配冻结 Profile、`debuggable=false`、`testOnly=false`，全部 Native 库满足 16 KiB 合同。Core 另从最终 Manifest 核对 `versionName`、Core 分配的整数 `versionCode`、安装身份、`client_local_validation=false` 与当前 `client_run_id`，再冻结制品摘要。
 
 发布前须将已保存的 Job 清单和固定 Core 传播到真实在线 Panel 消费者，并回读 Job；配置文件存在或本地清单校验不能证明在线任务可用。通过 Panel 触发该 Job，或在已准备控制面连接的环境使用既有入口：
 
@@ -161,7 +161,7 @@ bash fast-deploy-core/deploy-control/trigger_build.sh \
   -PtestBuildType=release :app:assembleReleaseAndroidTest
 ```
 
-将该测试 APK 与实际正式 APK 在两个授权的页大小环境配套运行 8 条回归，分别验证生产界面、原模型、Native 与相册；测试 APK 不进入正式分发。正式 APK 路径为 `app/build/outputs/apk/release/app-release.apk`，测试 APK 为 `app/build/outputs/apk/androidTest/release/app-release-androidTest.apk`。同一人工版本并不允许复用本地验证 APK；正式证书、Panel 快照、run 和最终摘要必须属于实际正式构建。
+将该测试 APK 与实际正式 APK 在两个授权的页大小环境配套运行 8 条回归，分别验证生产界面、原模型、Native 与相册；测试 APK 不进入正式分发。正式 APK 路径为 `app/build/outputs/apk/release/app-release.apk`，测试 APK 为 `app/build/outputs/apk/androidTest/release/app-release-androidTest.apk`。同一声明基线并不允许复用本地验证 APK；正式证书、Core 版本快照、run 和最终摘要必须属于实际正式构建。
 
 首次 GitHub 发布使用 tag `v1.0.0`，在正式 APK 和对应源码提交核验后上传 APK 与源码。本次采用已授权的 GitHub 发布操作，不新增产品发布流水线或长期 GitHub 上传器。接入源码、签名材料准备、正式构建、设备运行与 GitHub Release 分别核验；阶段结果归属[工作区 Issue 72](https://github.com/darren-you/darren-space/issues/72)，不在产品文档维护任务进度副本。
 

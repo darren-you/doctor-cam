@@ -122,7 +122,7 @@ if (clientVersionPending) {
                 it.name == "verifyReleaseDebugDisabled" || it.name == "dependencies" ||
                 it.name == "prepareReleaseSigning"
         }) {
-            "正式 Android 构建必须先分配 Panel 编号快照"
+            "正式 Android 构建必须先分配 Core 版本快照"
         }
     }
 }

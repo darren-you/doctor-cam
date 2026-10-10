@@ -41,4 +41,4 @@ flowchart LR
 
 OpenCV 5.0.0.1 官方 AAR 同时提供 Java、Native 和 Prefab；Paddle Lite 使用最新官方 v2.14-rc with_extra bundled 静态库，由 NDK 30 链接进本仓 JNI，ONNX Runtime 使用 1.31.0。UVC 使用官方 Maven `com.herohan:UVCAndroid:1.0.13`，直接消费支持 16 KiB 的原生库。原模型与标签保持不变，库升级后的执行合同由真实 Android 回归验证。
 
-版本从仓根 `release.json` 经固定 Core 读取，Debug 与 Release 构建使用同一安装身份；本地验证编号固定为 `1`，正式 `versionCode` 由 Panel 持久化分配。Release 必须先将 [DoctorCamApp.kt](src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt) 中唯一 `_debug` 改为 `false` 并通过门禁，再从固定 Profile 准备 PKCS12 签名。`assembleRelease` 等待最终 APK 签名、发布标志和 Native 16 KiB 检查成功；详细合同见[正式发布说明](../docs/operations/android-app/development.md#正式发布)。
+版本从仓根 `release.json` 经固定 Core 读取，Debug 与 Release 构建使用同一安装身份；本地验证编号固定为 `1`，正式版本与 `versionCode` 由 Core 持久化分配。Release 必须先将 [DoctorCamApp.kt](src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt) 中唯一 `_debug` 改为 `false` 并通过门禁，再从固定 Profile 准备 PKCS12 签名。`assembleRelease` 等待最终 APK 签名、发布标志和 Native 16 KiB 检查成功；详细合同见[正式发布说明](../docs/operations/android-app/development.md#正式发布)。

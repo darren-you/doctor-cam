@@ -52,6 +52,6 @@ Debug APK 位于 `app/build/outputs/apk/debug/app-debug.apk`，Android 8.0 / API
 - [Android 工程标准](https://github.com/darren-you/darren-space/blob/master/harness/docs/workspace/standards/android-app/android-app-golden-path.md)
 - [统一应用版本标准](https://github.com/darren-you/darren-space/blob/master/harness/docs/workspace/standards/client-version-golden-path.md)
 
-工作区逻辑身份为 `doctor-cam`，归属 `work-personal`。`release.json` 是人工三段版本的唯一事实源，当前为 `1.0.0`；Gradle 通过仓内固定 Core 消费本地验证输入或 Panel 正式编号快照。本地 APK 使用验证编号 `1` 并标记 `client_local_validation=true`，不能正式分发。
+工作区逻辑身份为 `doctor-cam`，归属 `work-personal`。`release.json` 只声明初始／最低目标版本 `1.0.0`；Gradle 通过仓内固定 Core 消费本地验证输入或 Core 正式版本快照。本地 APK 使用验证编号 `1` 并标记 `client_local_validation=true`，不能正式分发。
 
 正式发布入口为 Fast Deploy 的 `doctor-cam-android-app`，由仓根 [deploy_config.sh](deploy_config.sh) 绑定生产 `official / apk` 渠道，在 `mac-ci-1` 构建。Release 通过同一 Debug 静态门禁、固定 Profile 的 PKCS12 签名、最终证书回读和全库 16 KiB 检查；构建不修改 Git。发布合同见[开发说明](docs/operations/android-app/development.md#正式发布)。发布配置接入与本地运行不代表正式编号、正式 APK 或 GitHub Release 已验收；运行证据与本次发布结果统一记录在[工作区 Issue 72](https://github.com/darren-you/darren-space/issues/72)。
