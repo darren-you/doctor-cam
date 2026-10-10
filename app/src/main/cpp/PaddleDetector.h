@@ -15,6 +15,7 @@
 #pragma once
 
 #include <jni.h>
+#include <cstring>
 #include <string>
 #include <vector>
 

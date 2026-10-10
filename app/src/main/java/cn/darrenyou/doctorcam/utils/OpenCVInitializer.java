@@ -25,8 +25,8 @@ public class OpenCVInitializer {
         }
 
         try {
-            // 使用与仓内 Native SDK 配套的 OpenCV 4.2.0 Java 加载入口。
-            boolean success = OpenCVLoader.initDebug();
+            // 使用官方 AAR 的 Java / Native 配套加载入口。
+            boolean success = OpenCVLoader.initLocal();
             if (success) {
                 isInitialized = true;
 

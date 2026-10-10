@@ -18,6 +18,7 @@ dependencyResolutionManagement {
         google {
             content {
                 includeGroupByRegex("com\\.android.*")
+                includeGroup("com.google.prefab")
                 includeGroupByRegex("androidx.*")
             }
         }
@@ -26,5 +27,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "doctor-cam"
-include(":app", ":opencv")
-project(":opencv").projectDir = file("app/OpenCV/sdk")
+include(":app")

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "Pipeline.h"
+#include <cmath>
 Detector::Detector(const std::string &modelDir, const std::string &labelPath,
                    const int cpuThreadNum, const std::string &cpuPowerMode,
                    int inputWidth, int inputHeight,

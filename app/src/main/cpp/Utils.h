@@ -19,6 +19,7 @@
 #include <fstream>       // NOLINT
 #include <string>        // NOLINT
 #include <vector>        // NOLINT
+#include <sys/time.h>
 
 #define TAG "JNI"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__)

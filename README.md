@@ -21,8 +21,8 @@ flowchart LR
     devices[USB UVC 摄像头] --> camera[core/camera：设备观察与相机控制]
     features --> camera
     camera --> inference[core/inference：Paddle / ONNX]
-    opencv[仓内 OpenCV 4.2 SDK] --> camera
-    paddle[仓内 Paddle Lite / JNI 与原模型] --> inference
+    opencv[官方 OpenCV Maven / Prefab] --> camera
+    paddle[官方 Paddle Lite / JNI 与原模型] --> inference
     camera --> frame[独立抓拍位图与同帧结果]
     frame --> media[core/media：系统相册]
     app --> debug[core/ui：全局 Debug Panel]
@@ -31,7 +31,7 @@ flowchart LR
 
 ## 开发入口
 
-仓根是唯一 Android Gradle 工程根，应用模块为 `app`，安装身份为 `cn.darrenyou.doctorcam`。准备 JDK 17 及以上、SDK 36、NDK 17.2.4988734 与 CMake 3.22.1，物化仓内固定的 `fast-deploy-core` 子模块后构建本地 ARM64 验证包。完整步骤见[开发与验证说明](docs/operations/android-app/development.md)。
+仓根是唯一 Android Gradle 工程根，应用模块为 `app`，安装身份为 `cn.darrenyou.doctorcam`。准备 JDK 17 及以上、SDK 36、NDK 30.0.16248370 与 CMake 4.1.2，物化仓内固定的 `fast-deploy-core` 子模块后构建本地 ARM64 验证包。OpenCV 与 ONNX Runtime 从 Maven Central 获取，Paddle Lite 由本仓脚本校验官方制品后准备到构建目录；仓库不保留旧 SDK 副本。完整步骤见[开发与验证说明](docs/operations/android-app/development.md)。
 
 ```bash
 git submodule update --init fast-deploy-core

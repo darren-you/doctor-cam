@@ -57,6 +57,17 @@ Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeRelease(
   return JNI_TRUE;
 }
 
+JNIEXPORT jstring JNICALL
+Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeGetRuntimeVersion(
+    JNIEnv *env, jclass thiz, jlong ctx) {
+  if (ctx == 0) {
+    return nullptr;
+  }
+  const Pipeline *pipeline = reinterpret_cast<const Pipeline *>(ctx);
+  const std::string version = pipeline->GetDetector()->GetRuntimeVersion();
+  return env->NewStringUTF(version.c_str());
+}
+
 /*
  * Class:     cn_darrenyou_doctorcam_paddle_Native
  * Method:    nativeProcess

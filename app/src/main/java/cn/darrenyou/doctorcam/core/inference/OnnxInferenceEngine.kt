@@ -7,13 +7,18 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.system.Os
 import java.nio.FloatBuffer
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
 class OnnxInferenceEngine(context: Context) : InferenceEngine {
-    private val environment = OrtEnvironment.getEnvironment()
+    private val environment = run {
+        // 官方进程级禁用入口必须先于首次 ORT 初始化，端侧推理不创建遥测上传器。
+        Os.setenv("ORT_DISABLE_TELEMETRY", "1", true)
+        OrtEnvironment.getEnvironment()
+    }
     private val session: OrtSession = context.assets.open(MODEL_FILE).use {
         environment.createSession(it.readBytes())
     }

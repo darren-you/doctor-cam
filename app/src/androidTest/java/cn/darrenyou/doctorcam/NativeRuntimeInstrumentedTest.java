@@ -3,6 +3,7 @@ package cn.darrenyou.doctorcam;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.util.Log;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -48,7 +49,9 @@ import static org.junit.Assert.assertTrue;
 public class NativeRuntimeInstrumentedTest {
     @Test
     public void openCvLoadsAndExecutesNativeOperation() {
-        assertTrue("OpenCV Native 库必须可以从应用包加载", OpenCVLoader.initDebug());
+        assertTrue("OpenCV Native 库必须可以从应用包加载", OpenCVLoader.initLocal());
+        assertEquals("官方 Java API 必须来自当前 SDK", "5.0.0", OpenCVLoader.OPENCV_VERSION);
+        assertEquals("实际加载的 Native 库必须与 Java API 同版本", "5.0.0", Core.getVersionString());
         Mat identity = Mat.eye(3, 3, CvType.CV_32FC1);
         try {
             assertEquals(3, identity.rows());
@@ -157,6 +160,9 @@ public class NativeRuntimeInstrumentedTest {
             // 与当前 Paddle 页面一致：initDefault 保留 320 输入、默认均值/方差与 0.5 阈值。
             assertTrue("非零 Native 上下文表示初始化成功", detector.initDefault(
                     modelFile.getAbsolutePath(), labelFile.getAbsolutePath(), "LITE_POWER_HIGH"));
+            String runtimeVersion = detector.getRuntimeVersion();
+            assertFalse("运行库版本必须来自已创建的预测器", runtimeVersion.trim().isEmpty());
+            Log.i("DoctorCamSdkValidation", "Paddle Native runtime: " + runtimeVersion);
             assertValidResults(detector.processWithResults(squareBitmap), labelCount);
             int originalPixel = landscapeBitmap.getPixel(320, 179);
             assertValidResults(detector.processWithResults(landscapeBitmap), labelCount);
@@ -170,12 +176,16 @@ public class NativeRuntimeInstrumentedTest {
 
             assertTrue("第一次 release 必须释放已初始化的上下文", detector.release());
             assertFalse("重复 release 不能再次释放 Native 指针", detector.release());
+            assertThrows("释放后的会话不能继续回读 Native 指针", IllegalStateException.class,
+                    detector::getRuntimeVersion);
             assertEquals("释放后的推理必须安全返回空结果", 0,
                     detector.processWithResults(squareBitmap).length);
             assertFalse(detector.process(squareBitmap, ""));
 
             assertTrue("释放后应能重新加载同一包内模型", detector.initDefault(
                     modelFile.getAbsolutePath(), labelFile.getAbsolutePath(), "LITE_POWER_HIGH"));
+            assertEquals("重新初始化必须仍使用同一 Native 运行库", runtimeVersion,
+                    detector.getRuntimeVersion());
             assertValidResults(detector.processWithResults(landscapeBitmap), labelCount);
             assertTrue(detector.release());
             assertFalse(detector.release());

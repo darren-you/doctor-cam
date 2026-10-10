@@ -58,6 +58,18 @@ public class PaddleDetector {
         return nativeRelease(context);
     }
 
+    /** 返回实际创建预测器的 Native 运行库版本，不使用构建文件中的声明值。 */
+    public synchronized String getRuntimeVersion() {
+        if (ctx == 0) {
+            throw new IllegalStateException("Paddle 会话未初始化或已释放");
+        }
+        String version = nativeGetRuntimeVersion(ctx);
+        if (version == null || version.isEmpty()) {
+            throw new IllegalStateException("Paddle Native 运行库未返回版本");
+        }
+        return version;
+    }
+
     public synchronized boolean process(Bitmap ARGB8888ImageBitmap, String savedImagePath) {
         if (ctx == 0) {
             return false;
@@ -84,6 +96,8 @@ public class PaddleDetector {
     }
 
     private static native float[][] nativeProcessWithResults(long ctx, Bitmap ARGB8888ImageBitmap);
+
+    private static native String nativeGetRuntimeVersion(long ctx);
 
     
 

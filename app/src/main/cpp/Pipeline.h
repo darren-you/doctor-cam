@@ -16,11 +16,8 @@
 
 #include "Utils.h"                     // NOLINT
 #include "paddle_api.h"                // NOLINT
-#include <EGL/egl.h>                   // NOLINT
-#include <GLES2/gl2.h>                 // NOLINT
 #include <memory>                      // NOLINT
 #include <opencv2/core.hpp>            // NOLINT
-#include <opencv2/highgui/highgui.hpp> // NOLINT
 #include <opencv2/imgcodecs.hpp>       // NOLINT
 #include <opencv2/imgproc.hpp>         // NOLINT
 #include <string>                      // NOLINT
@@ -50,6 +47,8 @@ public: // NOLINT
 
   // 暴露labelList_
   const std::vector<std::string>& GetLabelList() const { return labelList_; }             
+
+  std::string GetRuntimeVersion() const { return predictor_->GetVersion(); }
 
 private: // NOLINT
   std::vector<std::string> LoadLabelList(const std::string &path);

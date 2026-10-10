@@ -40,6 +40,24 @@ val verifyReleaseDebugFixture by tasks.registering(Exec::class) {
     inputs.file(rootProject.file(releaseDebugFixturePath))
 }
 
+val paddleLiteSdkDirectory = layout.buildDirectory.dir("native-sdk/paddle-lite")
+val paddleLiteSdkPath = paddleLiteSdkDirectory.get().asFile.absolutePath
+val paddleLitePreparationScript = rootProject.file("tool/prepare_paddle_lite.py")
+val preparePaddleLiteSdk by tasks.registering(Exec::class) {
+    group = "build setup"
+    description = "下载并校验固定版本的官方 Paddle Lite ARM64 SDK"
+    commandLine("python3", paddleLitePreparationScript, "--output-dir", paddleLiteSdkPath)
+    inputs.file(paddleLitePreparationScript)
+    outputs.files(
+        paddleLiteSdkDirectory.map { it.file("include/paddle_api.h") },
+        paddleLiteSdkDirectory.map { it.file("include/paddle_place.h") },
+        paddleLiteSdkDirectory.map { it.file("lib/arm64-v8a/libpaddle_api_light_bundled.a") },
+    )
+}
+tasks.matching {
+    it.name == "preBuild" || it.name.startsWith("configureCMake")
+}.configureEach { dependsOn(preparePaddleLiteSdk) }
+
 val clientVersionTool = rootProject.file("fast-deploy-core/shared/client_version.py")
 val clientRunId = providers.environmentVariable("FAST_DEPLOY_RUN_ID").orElse("").get()
 val clientSnapshotPath = providers.environmentVariable("FAST_DEPLOY_CLIENT_VERSION_SNAPSHOT_FILE").orNull
@@ -89,8 +107,10 @@ android {
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild {
             cmake {
-                arguments += "-DANDROID_STL=c++_shared"
-                cppFlags += "-std=c++11"
+                arguments += listOf(
+                    "-DANDROID_STL=c++_shared",
+                    "-DPADDLE_LITE_SDK_DIR=$paddleLiteSdkPath",
+                )
             }
         }
     }
@@ -102,12 +122,11 @@ android {
         }
     }
 
-    // Paddle 现有 ELF 与 NDK 17 的原始链接器合同绑定。
-    ndkVersion = "17.2.4988734"
+    ndkVersion = "30.0.16248370"
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
+            version = "4.1.2"
         }
     }
 
@@ -118,9 +137,12 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        prefab = true
     }
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+        // AGP 8.13 先合并本项目 Native 输出，保留 NDK 30 的唯一共享 C++ 运行库。
+        jniLibs.pickFirsts += "lib/arm64-v8a/libc++_shared.so"
     }
 }
 
@@ -146,7 +168,7 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
-    implementation(project(":opencv"))
+    implementation(libs.opencv)
     implementation(libs.uvc.camera)
     implementation(libs.onnx.runtime)
 

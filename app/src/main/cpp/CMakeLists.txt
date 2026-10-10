@@ -1,72 +1,37 @@
-# For more information about using CMake with Android Studio, read the
-# documentation: https://d.android.com/studio/projects/add-native-code.html
-
-# Sets the minimum version of CMake required to build the native library.
-
-cmake_minimum_required(VERSION 3.22.1)
+cmake_minimum_required(VERSION 4.1.2)
 project(DoctorCam LANGUAGES CXX)
 
-# Creates and names a library, sets it as either STATIC or SHARED, and provides
-# the relative paths to its source code. You can define multiple libraries, and
-# CMake builds them for you. Gradle automatically packages shared libraries with
-# your APK.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(PADDLE_LITE_SDK_DIR "" CACHE PATH "已校验的 Paddle Lite SDK 构建目录")
 
-# 设置PaddleLite路径
-set(PaddleLite_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../PaddleLite")
-include_directories(${PaddleLite_DIR}/cxx/include)
+if(NOT ANDROID_ABI STREQUAL "arm64-v8a")
+    message(FATAL_ERROR "DoctorCam 只构建 arm64-v8a")
+endif()
+if(NOT EXISTS "${PADDLE_LITE_SDK_DIR}/include/paddle_api.h" OR
+   NOT EXISTS "${PADDLE_LITE_SDK_DIR}/lib/arm64-v8a/libpaddle_api_light_bundled.a")
+    message(FATAL_ERROR "请通过 Gradle preparePaddleLiteSdk 准备官方 SDK")
+endif()
 
-# 设置OpenCV路径
-set(OpenCV_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../OpenCV/sdk/native/jni")
-find_package(OpenCV 4.2.0 EXACT REQUIRED)
-message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
-include_directories(${OpenCV_INCLUDE_DIRS})
+find_package(OpenCV REQUIRED CONFIG)
 
-set(CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS} -ffast-math -Ofast -Os -DNDEBUG -fno-exceptions -fomit-frame-pointer -fno-asynchronous-unwind-tables -fno-unwind-tables"
-)
-set(CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden -fdata-sections -ffunction-sections"
-)
-set(CMAKE_SHARED_LINKER_FLAGS
-    "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections -Wl,-z,nocopyreloc")
-
-add_library(
-  # Sets the name of the library.
-  PaddleDetector
-  # Sets the library as a shared library.
-  SHARED
-  # Provides a relative path to your source file(s).
-  PaddleDetector.cc Pipeline.cc Utils.cc)
-
-add_library(
-  # Sets the name of the library.
-  paddle_light_api_shared
-  # Sets the library as a shared library.
-  SHARED
-  # Provides a relative path to your source file(s).
-  IMPORTED)
-
-set_target_properties(
-  # Specifies the target library.
-  paddle_light_api_shared
-  # Specifies the parameter you want to define.
-  PROPERTIES
-    IMPORTED_LOCATION
-    ${PaddleLite_DIR}/cxx/libs/${ANDROID_ABI}/libpaddle_light_api_shared.so
-    # Provides the path to the library you want to import.
+add_library(paddle_lite STATIC IMPORTED)
+set_target_properties(paddle_lite PROPERTIES
+    IMPORTED_LOCATION "${PADDLE_LITE_SDK_DIR}/lib/arm64-v8a/libpaddle_api_light_bundled.a"
+    INTERFACE_INCLUDE_DIRECTORIES "${PADDLE_LITE_SDK_DIR}/include"
 )
 
-# Specifies libraries CMake should link to your target library. You can link
-# multiple libraries, such as libraries you define in this build script,
-# prebuilt third-party libraries, or system libraries.
-
-target_link_libraries(
-  # Specifies the target library.
-  PaddleDetector
-  paddle_light_api_shared
-  jnigraphics
-  ${OpenCV_LIBS}
-  GLESv2
-  EGL
-  log
-  )
+add_library(PaddleDetector SHARED PaddleDetector.cc Pipeline.cc Utils.cc)
+target_compile_options(PaddleDetector PRIVATE
+    -ffast-math -Ofast -Os -DNDEBUG -fno-exceptions -fomit-frame-pointer
+    -fno-asynchronous-unwind-tables -fno-unwind-tables -fvisibility=hidden
+    -fvisibility-inlines-hidden -fdata-sections -ffunction-sections
+)
+# 同版官方 SDK 的静态集成使用 NDK 自有 OpenMP，不另打包 libomp.so。
+target_link_options(PaddleDetector PRIVATE
+    -Wl,--gc-sections -Wl,-z,nocopyreloc -fopenmp -static-openmp
+)
+target_link_libraries(PaddleDetector PRIVATE
+    "$<LINK_LIBRARY:WHOLE_ARCHIVE,paddle_lite>" OpenCV::opencv_java5 jnigraphics log
+)

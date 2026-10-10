@@ -15,7 +15,8 @@ androidTestRunner = "1.6.2"
 androidTestJunit = "1.2.1"
 espressoCore = "3.6.1"
 uvcCamera = "0.0.13"
-onnxRuntime = "1.16.3"
+onnxRuntime = "1.31.0"
+opencv = "5.0.0.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -43,10 +44,10 @@ androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espres
 junit = { group = "junit", name = "junit", version.ref = "junit4" }
 uvc-camera = { group = "org.uvccamera", name = "lib", version.ref = "uvcCamera" }
 onnx-runtime = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxRuntime" }
+opencv = { group = "org.opencv", name = "opencv", version.ref = "opencv" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

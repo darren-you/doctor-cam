@@ -1,6 +1,6 @@
 # Android 架构与实现边界
 
-DoctorCam 使用 Kotlin、Compose、Material 3、类型安全 Navigation Compose、Hilt、ViewModel 与协程 / StateFlow。仓根是 Android 工程根，`app` 为业务应用，`:opencv` 提供仓内同版本 Java / Native SDK；Paddle 以 Java JNI 和 C++ 边界连接既有预编译库。应用的持久输出是系统相册图片，没有自有后端、账号或业务数据库。
+DoctorCam 使用 Kotlin、Compose、Material 3、类型安全 Navigation Compose、Hilt、ViewModel 与协程 / StateFlow。仓根是 Android 工程根，`app` 为业务应用，OpenCV 官方 Maven AAR 统一提供 Java / Native 与 Prefab；Paddle 以 Java JNI 和 C++ 边界连接构建时校验下载的官方 ARM64 bundled 静态库。应用的持久输出是系统相册图片，没有自有后端、账号或业务数据库。
 
 ## 页面与依赖装配
 
@@ -31,11 +31,13 @@ DoctorCam 使用 Kotlin、Compose、Material 3、类型安全 Navigation Compose
 | [PaddleInferenceEngine](../../../app/src/main/java/cn/darrenyou/doctorcam/core/inference/PaddleInferenceEngine.kt) | 从当前 assets 复制原模型与标签；通过 Java / JNI 推理，校验结果并转换为统一检测类型 | 设备长按进入的默认检测实现 |
 | [OnnxInferenceEngine](../../../app/src/main/java/cn/darrenyou/doctorcam/core/inference/OnnxInferenceEngine.kt) | 原模型的 320 × 320 letterbox、RGB 张量、置信度筛选、按类 NMS 与原图坐标还原；释放自身 Session | 保留内部实现，设备列表没有公开入口 |
 
-Paddle 使用 `paddle/model.nb`、`paddle/doctor_label_list.txt` 和 `initDefault` 的既有输入尺寸、均值、方差、线程数、功耗模式与阈值。ONNX 使用 `onnx/best_320x320.onnx` 及自身类别顺序，两套标签不混用。重构没有替换模型或声称识别准确率改善。
+Paddle 使用 `paddle/model.nb`、`paddle/doctor_label_list.txt` 和 `initDefault` 的既有输入尺寸、均值、方差、线程数、功耗模式与阈值。ONNX 使用 `onnx/best_320x320.onnx` 及自身类别顺序，两套标签不混用。SDK 升级没有替换模型或声称识别准确率改善。现有 Paddle 模型记录的导出版本为 v2.13-rc，最新运行库为 v2.14-rc；运行库支持该模型序列化格式，版本差异会发出警告，能否执行仍须由实际模型回归确认。仓库没有用于重新导出的原始 Paddle 模型，不能伪造重新导出或准确率验证。
 
-每个 Paddle 引擎使用独立的临时模型目录，构造失败或关闭时清理；ONNX 引擎只拥有自身 Session，进程共享的 OrtEnvironment 不由单个引擎释放。两种引擎都支持重复关闭，关闭后拒绝继续推理；有效检测框约束在原图边界内。
+每个 Paddle 引擎使用独立的临时模型目录，构造失败或关闭时清理；ONNX 引擎只拥有自身 Session，进程共享的 OrtEnvironment 不由单个引擎释放。应用从 Manifest 移除 ORT 1.31 自动遥测 Provider 与新增网络权限，在创建 OrtEnvironment 前设置官方 `ORT_DISABLE_TELEMETRY=1`，保持端侧离线语义。两种引擎都支持重复关闭，关闭后拒绝继续推理；有效检测框约束在原图边界内。
 
-## Native 图像与资源合同
+## Native 依赖与资源合同
+
+旧 `app/OpenCV/` 与 `app/PaddleLite/` 目录已经删除。OpenCV 5.0.0.1 使用官方 Prefab `OpenCV::opencv_java5`，Paddle Lite 的制品 URL 与 SHA-256 固定在本仓 [prepare_paddle_lite.py](../../../tool/prepare_paddle_lite.py)，Gradle 只把真实消费的头文件与 bundled 静态库准备到被忽略的构建目录。C++ 使用 NDK 30 / CMake 4.1.2 / C++17。Paddle 使用同版官方 with_extra 包的 `libpaddle_api_light_bundled.a`，包含原模型的 hard_swish 扩展算子，并以 whole-archive 保留注册，Paddle 与 NDK 30 静态 OpenMP 的运行代码直接进入本仓 JNI；不打包有动态符号元数据错误的官方 shared 库。共享 STL 归属本项目 NDK 30，构建后检查实际打包库。
 
 - [PaddleDetector.java](../../../app/src/main/java/cn/darrenyou/doctorcam/paddle/PaddleDetector.java)以非零上下文表示初始化成功；初始化、推理和释放同步访问。释放前清零 Java 上下文，重复释放不再次删除 Native 指针；重新初始化先释放旧上下文。
 - [PaddleDetector.cc](../../../app/src/main/cpp/PaddleDetector.cc)按 Bitmap 实际 stride 读取像素，在锁内复制为 OpenCV 所有的图像后解锁预测。只接受 ARGB8888；Native 失败明确报告，不能冒充零检测结果。
