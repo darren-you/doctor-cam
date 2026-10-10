@@ -45,7 +45,7 @@ public class ImageProcessingUtils {
 
     /**
      * 使用OpenCV的本地方法加速YUV到Bitmap的转换
-     * 相比于普通方法，这个实现避免了多余的内存拷贝，直接在本地代码中完成转换
+     * 复用帧转换入口，NV21 按 RGBA 通道顺序写入 Bitmap。
      *
      * @param data YUV格式的图像数据
      * @param width 图像宽度
@@ -53,58 +53,11 @@ public class ImageProcessingUtils {
      * @return 转换后的Bitmap
      */
     public static Bitmap yuv2BitmapNative(byte[] data, int width, int height) {
-        if (!OpenCVInitializer.isInitialized()) {
-            return yuv2BitmapJava(data, width, height);
+        if (data == null) {
+            return null;
         }
-
-        try {
-            // 创建直接分配的ByteBuffer，避免Java堆内存和本地内存之间的拷贝
-            java.nio.ByteBuffer directBuffer = java.nio.ByteBuffer.allocateDirect(data.length);
-            directBuffer.put(data);
-            directBuffer.rewind();
-
-            // 使用OpenCV的本地内存创建Mat
-            Mat yuvMat = new Mat(height + height / 2, width, CvType.CV_8UC1, directBuffer);
-
-            // 创建RGB Mat，使用连续内存
-            Mat rgbMat = new Mat(height, width, CvType.CV_8UC4);
-
-            // 使用OpenCV的本地方法进行颜色空间转换
-            Imgproc.cvtColor(yuvMat, rgbMat, Imgproc.COLOR_YUV2RGBA_NV21);
-            
-            // 修复颜色通道顺序问题 - 将RGBA转换为正确的顺序
-            // OpenCV使用BGRA顺序，需要转换为RGBA
-            Mat fixedMat = new Mat(height, width, CvType.CV_8UC4);
-            byte[] rgba = new byte[4];
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    double[] pixel = rgbMat.get(y, x);
-                    rgba[0] = (byte)pixel[2]; // R (原B通道)
-                    rgba[1] = (byte)pixel[1]; // G
-                    rgba[2] = (byte)pixel[0]; // B (原R通道)
-                    rgba[3] = (byte)pixel[3]; // A
-                    fixedMat.put(y, x, rgba);
-                }
-            }
-
-            // 创建Bitmap并直接使用本地内存
-            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-
-            // 使用OpenCV的Utils类直接将Mat数据复制到Bitmap，避免额外的内存拷贝
-            Utils.matToBitmap(fixedMat, bitmap);
-
-            // 释放Mat资源
-            yuvMat.release();
-            rgbMat.release();
-            fixedMat.release();
-
-            return bitmap;
-        } catch (Exception e) {
-            Log.e(TAG, "本地YUV转换失败，回退到标准方法", e);
-            return yuv2BitmapJava(data, width, height);
-        }
+        return getFrameAsBitmap(ByteBuffer.wrap(data), width, height);
     }
-
 
 
     /**
@@ -201,28 +154,34 @@ public class ImageProcessingUtils {
     }
 
     public static Bitmap getFrameAsBitmap(ByteBuffer frame, int width, int height) {
+        long requiredSize = (long) width * height * 3 / 2;
+        if (!OpenCVInitializer.isInitialized() || frame == null || width <= 0 || height <= 0
+                || width % 2 != 0 || height % 2 != 0 || requiredSize > frame.remaining()) {
+            return null;
+        }
+        Mat yuvMat = null;
+        Mat rgbaMat = null;
         try {
-            // 将ByteBuffer转换为byte数组
-            byte[] data = new byte[frame.remaining()];
-            frame.get(data);
-
-            // 使用OpenCV将NV21格式转换为Bitmap
-            Mat yuvMat = new Mat(height + height/2, width, CvType.CV_8UC1);
+            // 不消费 UVC 回调借出的 Buffer；每次使用独立视图读取当前帧。
+            byte[] data = new byte[(int) requiredSize];
+            frame.duplicate().get(data);
+            yuvMat = new Mat(height + height / 2, width, CvType.CV_8UC1);
             yuvMat.put(0, 0, data);
-
-            Mat rgbMat = new Mat();
-            Imgproc.cvtColor(yuvMat, rgbMat, Imgproc.COLOR_YUV2RGB_NV21);
-
+            rgbaMat = new Mat();
+            Imgproc.cvtColor(yuvMat, rgbaMat, Imgproc.COLOR_YUV2RGBA_NV21);
             Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-            Utils.matToBitmap(rgbMat, bitmap);
-
-            yuvMat.release();
-            rgbMat.release();
-
+            Utils.matToBitmap(rgbaMat, bitmap);
             return bitmap;
         } catch (Exception e) {
-            Log.e("ImageProcessingUtils", "转换帧为Bitmap失败", e);
+            Log.e(TAG, "转换 NV21 帧为 Bitmap 失败", e);
             return null;
+        } finally {
+            if (yuvMat != null) {
+                yuvMat.release();
+            }
+            if (rgbaMat != null) {
+                rgbaMat.release();
+            }
         }
     }
 

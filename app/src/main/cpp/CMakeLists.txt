@@ -3,7 +3,8 @@
 
 # Sets the minimum version of CMake required to build the native library.
 
-cmake_minimum_required(VERSION 3.4.1)
+cmake_minimum_required(VERSION 3.22.1)
+project(DoctorCam LANGUAGES CXX)
 
 # Creates and names a library, sets it as either STATIC or SHARED, and provides
 # the relative paths to its source code. You can define multiple libraries, and
@@ -16,7 +17,7 @@ include_directories(${PaddleLite_DIR}/cxx/include)
 
 # 设置OpenCV路径
 set(OpenCV_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../OpenCV/sdk/native/jni")
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 4.2.0 EXACT REQUIRED)
 message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
 include_directories(${OpenCV_INCLUDE_DIRS})
 
@@ -36,12 +37,6 @@ add_library(
   SHARED
   # Provides a relative path to your source file(s).
   PaddleDetector.cc Pipeline.cc Utils.cc)
-
-find_library(
-  # Sets the name of the path variable.
-  log-lib
-  # Specifies the name of the NDK library that you want CMake to locate.
-  log)
 
 add_library(
   # Sets the name of the library.
@@ -73,5 +68,5 @@ target_link_libraries(
   ${OpenCV_LIBS}
   GLESv2
   EGL
-  ${log-lib}
+  log
   )

@@ -2,6 +2,7 @@ package cn.darrenyou.doctorcam.manager;
 
 import android.content.Context;
 import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbConstants;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -11,12 +12,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class UsbDeviceManager {
-    private static final String ACTION_USB_PERMISSION = "cn.darrenyou.doctorcam.USB_PERMISSION";
-
     private Context context;
     private USBMonitor usbMonitor;
     private List<UsbDeviceInfo> deviceList = new ArrayList<>();
     private DeviceListListener listener;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private volatile boolean released;
 
     public UsbDeviceManager(Context context) {
         this.context = context;
@@ -52,31 +53,40 @@ public class UsbDeviceManager {
         });
     }
 
-    public void register() {
+    public synchronized void register() {
         if (usbMonitor != null) {
             usbMonitor.register();
             updateDeviceList();
         }
     }
 
-    public void unregister() {
+    public synchronized void unregister() {
         if (usbMonitor != null) {
             usbMonitor.unregister();
         }
     }
 
-    public void release() {
+    public synchronized void release() {
+        released = true;
+        listener = null;
+        mainHandler.removeCallbacksAndMessages(null);
         if (usbMonitor != null) {
             usbMonitor.destroy();
             usbMonitor = null;
         }
     }
 
-    private void updateDeviceList() {
+    private synchronized void updateDeviceList() {
+        if (released || usbMonitor == null) {
+            return;
+        }
         deviceList.clear();
         List<UsbDevice> devices = usbMonitor.getDeviceList();
         
         for (UsbDevice device : devices) {
+            if (!isVideoDevice(device)) {
+                continue;
+            }
             UsbDeviceInfo deviceInfo = new UsbDeviceInfo(
                     device,
                     device.getDeviceName(),
@@ -90,15 +100,28 @@ public class UsbDeviceManager {
         }
         
         // 使用Handler确保在主线程中回调
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (listener != null) {
-                listener.onDeviceListUpdated(deviceList);
+        List<UsbDeviceInfo> snapshot = new ArrayList<>(deviceList);
+        mainHandler.post(() -> {
+            if (!released && listener != null) {
+                listener.onDeviceListUpdated(snapshot);
             }
         });
     }
 
+    private static boolean isVideoDevice(UsbDevice device) {
+        if (device.getDeviceClass() == UsbConstants.USB_CLASS_VIDEO) {
+            return true;
+        }
+        for (int i = 0; i < device.getInterfaceCount(); i++) {
+            if (device.getInterface(i).getInterfaceClass() == UsbConstants.USB_CLASS_VIDEO) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public List<UsbDeviceInfo> getDeviceList() {
-        return deviceList;
+        return new ArrayList<>(deviceList);
     }
 
     public void setDeviceListListener(DeviceListListener listener) {

@@ -6,6 +6,8 @@ import android.graphics.Point;
 import android.graphics.SurfaceTexture;
 import android.hardware.usb.UsbDevice;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Size;
 import android.view.LayoutInflater;
 import android.view.Surface;
@@ -30,7 +32,11 @@ public class UvcPreviewFragment extends Fragment {
     private FragmentUvcPreviewBinding binding;
     private USBMonitor usbMonitor;
     private UVCCamera uvcCamera;
+    private USBMonitor.UsbControlBlock cameraControlBlock;
     private Surface surface;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private boolean viewActive;
+    private boolean permissionRequested;
     
     private int deviceId;
     private int vendorId;
@@ -47,6 +53,7 @@ public class UvcPreviewFragment extends Fragment {
 
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        permissionRequested = false;
 
         // 强制横屏并设置全屏模式（允许延伸到刘海区域）
         requireActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
@@ -58,9 +65,8 @@ public class UvcPreviewFragment extends Fragment {
         SystemBarUtils.transparentNavigationBar(requireActivity());
         SystemBarUtils.setNavigationBarButtonColor(requireActivity(), true);
 
-        // 初始化时禁用两个按钮
+        // 返回不依赖相机连接状态。
         binding.captureButton.setEnabled(false);
-        binding.buttonSecond.setEnabled(false);
 
         // 获取传递的设备信息
         if (getArguments() != null) {
@@ -80,16 +86,8 @@ public class UvcPreviewFragment extends Fragment {
         
         // 设置返回按钮点击事件
         binding.buttonSecond.setOnClickListener(v -> {
-            if (uvcCamera != null) {
-                try {
-                    uvcCamera.stopPreview();
-                    uvcCamera.close();
-                } catch (final Exception e) {
-                    e.printStackTrace();
-                }
-            }
-            NavHostFragment.findNavController(UvcPreviewFragment.this)
-                    .navigate(R.id.action_UvcPreviewFragment_to_UvcDevicesFragment);
+            releaseCamera();
+            NavHostFragment.findNavController(UvcPreviewFragment.this).popBackStack();
         });
     }
     
@@ -98,44 +96,83 @@ public class UvcPreviewFragment extends Fragment {
             @Override
             public void onAttach(UsbDevice device) {
                 // 设备已连接
-                if (device.getVendorId() == vendorId && device.getProductId() == productId) {
-                    usbMonitor.requestPermission(device);
+                if (isSelectedDevice(device)) {
+                    runOnViewThread(() -> requestSelectedDevice());
                 }
             }
 
             @Override
             public void onDettach(UsbDevice device) {
                 // 设备已断开
-                if (device.getVendorId() == vendorId && device.getProductId() == productId) {
-                    releaseCamera();
-                    requireActivity().runOnUiThread(() -> 
-                        Toast.makeText(requireContext(), "设备已断开连接", Toast.LENGTH_SHORT).show());
+                if (isSelectedDevice(device)) {
+                    runOnViewThread(() -> {
+                        permissionRequested = false;
+                        releaseCamera();
+                        Toast.makeText(requireContext(), "设备已断开连接", Toast.LENGTH_SHORT).show();
+                    });
                 }
             }
 
             @Override
             public void onConnect(UsbDevice device, USBMonitor.UsbControlBlock ctrlBlock, boolean createNew) {
                 // 设备已获得权限，可以开始使用
-                if (device.getVendorId() == vendorId && device.getProductId() == productId) {
-                    initCamera(ctrlBlock);
+                if (isSelectedDevice(device)) {
+                    runOnViewThread(() -> {
+                        if (uvcCamera == null) {
+                            initCamera(ctrlBlock);
+                        }
+                    });
                 }
             }
 
             @Override
             public void onDisconnect(UsbDevice device, USBMonitor.UsbControlBlock ctrlBlock) {
                 // 设备已断开连接
-                if (device.getVendorId() == vendorId && device.getProductId() == productId) {
-                    releaseCamera();
+                if (isSelectedDevice(device)) {
+                    runOnViewThread(() -> {
+                        if (uvcCamera != null && uvcCamera.getUsbControlBlock() == ctrlBlock) {
+                            releaseCamera();
+                        }
+                    });
                 }
             }
 
             @Override
             public void onCancel(UsbDevice device) {
                 // 用户取消了权限请求
-                requireActivity().runOnUiThread(() -> 
+                runOnViewThread(() ->
                     Toast.makeText(requireContext(), "未获得设备权限", Toast.LENGTH_SHORT).show());
             }
         });
+    }
+
+    private boolean isSelectedDevice(UsbDevice device) {
+        return device != null && device.getDeviceId() == deviceId
+                && device.getVendorId() == vendorId && device.getProductId() == productId;
+    }
+
+    private void runOnViewThread(Runnable action) {
+        mainHandler.post(() -> {
+            if (viewActive && binding != null && isAdded()) {
+                action.run();
+            }
+        });
+    }
+
+    private void requestSelectedDevice() {
+        if (usbMonitor == null || uvcCamera != null) {
+            return;
+        }
+        for (UsbDevice device : usbMonitor.getDeviceList()) {
+            if (isSelectedDevice(device)) {
+                // USB 授权对话框可能暂停页面；恢复时读取真实授权，拒绝后不重复弹窗。
+                if (!permissionRequested || usbMonitor.hasPermission(device)) {
+                    permissionRequested = true;
+                    usbMonitor.requestPermission(device);
+                }
+                return;
+            }
+        }
     }
     
     private void initCamera(USBMonitor.UsbControlBlock ctrlBlock) {
@@ -144,6 +181,7 @@ public class UvcPreviewFragment extends Fragment {
             
             // 创建UVCCamera实例
             uvcCamera = new UVCCamera();
+            cameraControlBlock = ctrlBlock;
             uvcCamera.open(ctrlBlock);
             
             // 获取屏幕尺寸
@@ -174,11 +212,7 @@ public class UvcPreviewFragment extends Fragment {
                 uvcCamera.setPreviewDisplay(surface);
                 uvcCamera.startPreview();
                 
-                // 更新UI，同时启用两个按钮
-                requireActivity().runOnUiThread(() -> {
-                    binding.captureButton.setEnabled(true);
-                    binding.buttonSecond.setEnabled(true);
-                });
+                binding.captureButton.setEnabled(true);
             }
         } catch (Exception e) {
             releaseCamera();
@@ -191,23 +225,25 @@ public class UvcPreviewFragment extends Fragment {
     private void releaseCamera() {
         UVCCamera camera = uvcCamera;  // 创建本地引用
         uvcCamera = null;  // 立即将全局引用置空
+        USBMonitor.UsbControlBlock controlBlock = cameraControlBlock;
+        cameraControlBlock = null;
 
         if (camera != null) {
             try {
-                camera.stopPreview();
-                camera.close();
                 camera.destroy();
             } catch (final Exception e) {
                 e.printStackTrace();
             }
         }
+        if (controlBlock != null) {
+            controlBlock.close();
+        }
         
-        // 更新UI，同时禁用两个按钮
+        // 停止预览后禁用抓拍，返回仍可使用。
         if (isAdded() && getActivity() != null && !getActivity().isFinishing()) {
             requireActivity().runOnUiThread(() -> {
                 if (binding != null) {
                     binding.captureButton.setEnabled(false);
-                    binding.buttonSecond.setEnabled(false);
                 }
             });
         }
@@ -243,9 +279,12 @@ public class UvcPreviewFragment extends Fragment {
                 try {
                     uvcCamera.setPreviewDisplay(surface);
                     uvcCamera.startPreview();
+                    binding.captureButton.setEnabled(true);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
+            } else if (viewActive) {
+                requestSelectedDevice();
             }
         }
 
@@ -256,6 +295,8 @@ public class UvcPreviewFragment extends Fragment {
 
         @Override
         public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture surfaceTexture) {
+            releaseCamera();
+            permissionRequested = false;
             if (surface != null) {
                 surface.release();
                 surface = null;
@@ -272,8 +313,10 @@ public class UvcPreviewFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        viewActive = true;
         if (usbMonitor != null) {
             usbMonitor.register();
+            requestSelectedDevice();
         }
 
         // 设置状态栏透明和深色图标
@@ -285,6 +328,8 @@ public class UvcPreviewFragment extends Fragment {
     
     @Override
     public void onPause() {
+        viewActive = false;
+        mainHandler.removeCallbacksAndMessages(null);
         try {
             if (usbMonitor != null) {
                 usbMonitor.unregister();
@@ -293,25 +338,16 @@ public class UvcPreviewFragment extends Fragment {
             e.printStackTrace();
         }
         
-        // 在 super.onPause() 之前释放相机资源
-        UVCCamera camera = uvcCamera;  // 创建本地引用
-        if (camera != null) {
-            try {
-                camera.stopPreview();
-                camera.close();
-                camera.destroy();
-            } catch (final Exception e) {
-                e.printStackTrace();
-            } finally {
-                uvcCamera = null;
-            }
-        }
+        releaseCamera();
 
         super.onPause();
     }
 
     @Override
     public void onDestroyView() {
+        viewActive = false;
+        mainHandler.removeCallbacksAndMessages(null);
+        releaseCamera();
         // 恢复竖屏和系统UI
         requireActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         SystemBarUtils.exitFullScreenImmersive(requireActivity());

@@ -11,7 +11,6 @@ import android.graphics.Point;
 import android.graphics.PorterDuff;
 import android.graphics.RectF;
 import android.hardware.usb.UsbDevice;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -33,8 +32,11 @@ import com.serenegiant.usb.USBMonitor;
 import com.serenegiant.usb.UVCCamera;
 
 import java.io.File;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -54,7 +56,6 @@ public class PaddleDetectionFragment extends Fragment {
 
     private static final String TAG = "PaddleDetectionFragment";
     // 用于计时
-    private long frameStartTime = 0; // 帧开始处理时间
     private long inferenceStartTime = 0; // 推理开始时间
     private int frameCount = 0; // 帧计数器
     private long lastFpsTimestamp = 0; // 上一次计算FPS的时间戳
@@ -75,14 +76,21 @@ public class PaddleDetectionFragment extends Fragment {
     private FragmentPaddleDetectionBinding binding;
     private USBMonitor usbMonitor;
     private UVCCamera uvcCamera;
+    private USBMonitor.UsbControlBlock cameraControlBlock;
     private Surface surface;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private boolean viewActive;
+    private boolean permissionRequested;
+    private volatile boolean previewRunning;
+    private volatile int previewWidth;
+    private volatile int previewHeight;
 
     private int deviceId;
     private int vendorId;
     private int productId;
 
     // Paddle检测器
-    private PaddleDetector paddleDetector;
+    private volatile PaddleDetector paddleDetector;
     private Map<Integer, String> labelMap = new HashMap<>();
 
     private Handler uiHandler;
@@ -92,35 +100,28 @@ public class PaddleDetectionFragment extends Fragment {
     // 直接绘制模式
     private SurfaceHolder overlayHolder;
 
-    byte[] lastFrameData;
-    float[][] lastDetectionResults;
+    volatile byte[] lastFrameData;
+    volatile float[][] lastDetectionResults;
+    private final Object frameLock = new Object();
 
     // 修改后的帧回调处理
     private final IFrameCallback frameCallback = new IFrameCallback() {
-        private int width = 0;
-        private int height = 0;
-
         @Override
         public void onFrame(final ByteBuffer frame) {
-            if (uvcCamera == null) {
+            PaddleDetector detector = paddleDetector;
+            if (!previewRunning || detector == null) {
                 return;
             }
 
-            frameStartTime = System.currentTimeMillis(); // 开始处理帧时间
+            int width = previewWidth;
+            int height = previewHeight;
+            long currentFrameStartTime = System.currentTimeMillis();
 
             // 复制帧数据
             byte[] data = new byte[frame.remaining()];
-            frame.get(data);
-            frame.rewind();
-            lastFrameData = data;
+            frame.duplicate().get(data);
 
             try {
-                // 只在第一次或尺寸变化时获取预览尺寸
-                if (width == 0 || height == 0) {
-                    width = uvcCamera.getPreviewSize().width;
-                    height = uvcCamera.getPreviewSize().height;
-                }
-
                 // 直接获取Bitmap格式的帧数据
                 Bitmap bitmap = ImageProcessingUtils.getFrameAsBitmap(frame, width, height);
                 if (bitmap == null) {
@@ -136,8 +137,11 @@ public class PaddleDetectionFragment extends Fragment {
 
                 // 使用Paddle进行推理
                 try {
-                    float[][] detectionResults = paddleDetector.processWithResults(bitmap);
-                    lastDetectionResults = detectionResults;
+                    float[][] detectionResults = detector.processWithResults(bitmap);
+                    synchronized (frameLock) {
+                        lastFrameData = data;
+                        lastDetectionResults = detectionResults;
+                    }
 
                     // 推理结束时间
                     long inferenceEndTime = System.currentTimeMillis();
@@ -181,14 +185,16 @@ public class PaddleDetectionFragment extends Fragment {
                     // 在UI线程中绘制检测结果
                     if (uiHandler != null) {
                         uiHandler.post(() -> {
-                            drawDetectionResults(detections, frameStartTime); // 传入帧开始时间
+                            if (binding != null && previewRunning) {
+                                binding.captureButton.setEnabled(true);
+                                drawDetectionResults(detections, currentFrameStartTime);
+                            }
                         });
-                    } else {
-                        bitmap.recycle();
                     }
-                    bitmap.recycle();
                 } catch (Exception e) {
                     Log.e(TAG, "处理帧时出错", e);
+                } finally {
+                    bitmap.recycle();
                 }
             } catch (Exception e) {
                 Log.e(TAG, "处理摄像头帧时出错", e);
@@ -226,13 +232,14 @@ public class PaddleDetectionFragment extends Fragment {
 
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        permissionRequested = false;
 
         // 设置屏幕方向和系统UI
         setupScreenAndSystemUI();
 
-        // 禁用按钮，直到相机初始化完成
+        // 返回不依赖模型或相机初始化成功。
         binding.captureButton.setEnabled(false);
-        binding.buttonSecond.setEnabled(false);
+        setupButtons();
 
         // 获取设备参数
         if (getArguments() != null) {
@@ -247,8 +254,10 @@ public class PaddleDetectionFragment extends Fragment {
         // 初始化OpenCV
         initOpenCV();
 
-        // 初始化推理相关组件
-        initInference();
+        // OpenCV 与模型成功加载后才能接收相机帧。
+        if (!OpenCVInitializer.isInitialized() || !initInference()) {
+            return;
+        }
 
         // 初始化USB监视器
         initUsbMonitor();
@@ -258,9 +267,6 @@ public class PaddleDetectionFragment extends Fragment {
 
         // 初始化相机预览
         initCameraPreview();
-
-        // 设置按钮点击事件
-        setupButtons();
 
         // 启动定时器
         lastResetTimestamp = System.currentTimeMillis();
@@ -294,7 +300,7 @@ public class PaddleDetectionFragment extends Fragment {
         }
     }
 
-    private void initInference() {
+    private boolean initInference() {
         // 初始化画笔
         boxPaint = new Paint();
         boxPaint.setColor(Color.RED);
@@ -320,12 +326,13 @@ public class PaddleDetectionFragment extends Fragment {
             copyAssetFile(requireContext(),"paddle/doctor_label_list.txt", labelFile);
 
             // 读取标签文件并建立映射
-            List<String> labels = null;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                labels = Files.readAllLines(labelFile.toPath());
-            }
-            for (int i = 0; i < labels.size(); i++) {
-                labelMap.put(i, labels.get(i));
+            labelMap.clear();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                    new FileInputStream(labelFile), StandardCharsets.UTF_8))) {
+                String label;
+                while ((label = reader.readLine()) != null) {
+                    labelMap.put(labelMap.size(), label);
+                }
             }
 
             paddleDetector = new PaddleDetector();
@@ -334,15 +341,21 @@ public class PaddleDetectionFragment extends Fragment {
                     labelFile.getAbsolutePath(),
                     "LITE_POWER_HIGH"
             );
-        } catch (Exception e) {
+            if (!success) {
+                throw new IllegalStateException("模型初始化未返回有效上下文");
+            }
+            return true;
+        } catch (Exception | LinkageError e) {
             Log.e(TAG, "模型加载失败", e);
             Toast.makeText(requireContext(), "模型加载失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            return false;
         }
     }
 
     private void initOverlay() {
         overlayHolder = binding.overlayView.getHolder();
         overlayHolder.setFormat(android.graphics.PixelFormat.TRANSPARENT);
+        binding.overlayView.setZOrderMediaOverlay(true);
     }
 
     private void initCameraPreview() {
@@ -353,9 +366,7 @@ public class PaddleDetectionFragment extends Fragment {
                 // 如果相机已经初始化，设置预览
                 if (uvcCamera != null) {
                     try {
-                        uvcCamera.setPreviewDisplay(surface);
-
-                        uvcCamera.startPreview();
+                        startCameraPreview();
                     } catch (Exception e) {
                         Log.e(TAG, "设置预览失败", e);
                     }
@@ -369,6 +380,13 @@ public class PaddleDetectionFragment extends Fragment {
 
             @Override
             public void surfaceDestroyed(SurfaceHolder holder) {
+                previewRunning = false;
+                if (uvcCamera != null) {
+                    uvcCamera.stopPreview();
+                }
+                if (binding != null) {
+                    binding.captureButton.setEnabled(false);
+                }
                 surface = null;
             }
         });
@@ -379,8 +397,7 @@ public class PaddleDetectionFragment extends Fragment {
 
         binding.buttonSecond.setOnClickListener(v -> {
             releaseCamera();
-            NavHostFragment.findNavController(PaddleDetectionFragment.this)
-                    .navigate(R.id.action_PaddleDetectionFragment_to_UvcDevicesFragment);
+            NavHostFragment.findNavController(PaddleDetectionFragment.this).popBackStack();
         });
     }
 
@@ -389,44 +406,93 @@ public class PaddleDetectionFragment extends Fragment {
             @Override
             public void onAttach(UsbDevice device) {
                 // 设备已连接
-                if (device.getVendorId() == vendorId && device.getProductId() == productId) {
-                    usbMonitor.requestPermission(device);
+                if (isSelectedDevice(device)) {
+                    runOnViewThread(() -> requestSelectedDevice());
                 }
             }
 
             @Override
             public void onDettach(UsbDevice device) {
                 // 设备已断开
-                if (device.getVendorId() == vendorId && device.getProductId() == productId) {
-                    releaseCamera();
-                    requireActivity().runOnUiThread(() ->
-                            Toast.makeText(requireContext(), "设备已断开连接", Toast.LENGTH_SHORT).show());
+                if (isSelectedDevice(device)) {
+                    runOnViewThread(() -> {
+                        permissionRequested = false;
+                        releaseCamera();
+                        Toast.makeText(requireContext(), "设备已断开连接", Toast.LENGTH_SHORT).show();
+                    });
                 }
             }
 
             @Override
             public void onConnect(UsbDevice device, USBMonitor.UsbControlBlock ctrlBlock, boolean createNew) {
                 // 设备已获得权限，可以开始使用
-                if (device.getVendorId() == vendorId && device.getProductId() == productId) {
-                    initCamera(ctrlBlock);
+                if (isSelectedDevice(device)) {
+                    runOnViewThread(() -> {
+                        if (uvcCamera == null) {
+                            initCamera(ctrlBlock);
+                        }
+                    });
                 }
             }
 
             @Override
             public void onDisconnect(UsbDevice device, USBMonitor.UsbControlBlock ctrlBlock) {
                 // 设备已断开连接
-                if (device.getVendorId() == vendorId && device.getProductId() == productId) {
-                    releaseCamera();
+                if (isSelectedDevice(device)) {
+                    runOnViewThread(() -> {
+                        if (uvcCamera != null && uvcCamera.getUsbControlBlock() == ctrlBlock) {
+                            releaseCamera();
+                        }
+                    });
                 }
             }
 
             @Override
             public void onCancel(UsbDevice device) {
                 // 用户取消了权限请求
-                requireActivity().runOnUiThread(() ->
+                runOnViewThread(() ->
                         Toast.makeText(requireContext(), "未获得设备权限", Toast.LENGTH_SHORT).show());
             }
         });
+    }
+
+    private boolean isSelectedDevice(UsbDevice device) {
+        return device != null && device.getDeviceId() == deviceId
+                && device.getVendorId() == vendorId && device.getProductId() == productId;
+    }
+
+    private void runOnViewThread(Runnable action) {
+        mainHandler.post(() -> {
+            if (viewActive && binding != null && isAdded()) {
+                action.run();
+            }
+        });
+    }
+
+    private void requestSelectedDevice() {
+        if (usbMonitor == null || uvcCamera != null) {
+            return;
+        }
+        for (UsbDevice device : usbMonitor.getDeviceList()) {
+            if (isSelectedDevice(device)) {
+                // USB 授权对话框可能暂停页面；恢复时读取真实授权，拒绝后不重复弹窗。
+                if (!permissionRequested || usbMonitor.hasPermission(device)) {
+                    permissionRequested = true;
+                    usbMonitor.requestPermission(device);
+                }
+                return;
+            }
+        }
+    }
+
+    private void startCameraPreview() {
+        if (uvcCamera == null || surface == null || !surface.isValid()) {
+            return;
+        }
+        uvcCamera.setFrameCallback(frameCallback, UVCCamera.PIXEL_FORMAT_NV21);
+        uvcCamera.setPreviewDisplay(surface);
+        previewRunning = true;
+        uvcCamera.startPreview();
     }
 
     private void initCamera(USBMonitor.UsbControlBlock ctrlBlock) {
@@ -435,6 +501,7 @@ public class PaddleDetectionFragment extends Fragment {
 
             // 创建UVCCamera实例
             uvcCamera = new UVCCamera();
+            cameraControlBlock = ctrlBlock;
             uvcCamera.open(ctrlBlock);
 
             // 获取屏幕尺寸
@@ -452,7 +519,7 @@ public class PaddleDetectionFragment extends Fragment {
                 try {
                     // 如果MJPEG不支持，尝试YUV格式
                     uvcCamera.setPreviewSize(optimalSize.getWidth(), optimalSize.getHeight(),
-                            UVCCamera.PIXEL_FORMAT_NV21);
+                            UVCCamera.FRAME_FORMAT_YUYV);
                 } catch (IllegalArgumentException e2) {
                     // 如果都不支持，使用默认尺寸
                     uvcCamera.setPreviewSize(UVCCamera.DEFAULT_PREVIEW_WIDTH,
@@ -460,20 +527,13 @@ public class PaddleDetectionFragment extends Fragment {
                 }
             }
 
-            // 设置帧回调
-            uvcCamera.setFrameCallback(frameCallback, UVCCamera.PIXEL_FORMAT_NV21);
-
-            // 开始预览
-            if (surface != null) {
-                uvcCamera.setPreviewDisplay(surface);
-                uvcCamera.startPreview();
-
-                // 更新UI，同时启用两个按钮
-                requireActivity().runOnUiThread(() -> {
-                    binding.captureButton.setEnabled(true);
-                    binding.buttonSecond.setEnabled(true);
-                });
+            com.serenegiant.usb.Size actualSize = uvcCamera.getPreviewSize();
+            if (actualSize == null) {
+                throw new IllegalStateException("相机未返回有效预览尺寸");
             }
+            previewWidth = actualSize.width;
+            previewHeight = actualSize.height;
+            startCameraPreview();
         } catch (Exception e) {
             releaseCamera();
             requireActivity().runOnUiThread(() ->
@@ -484,7 +544,7 @@ public class PaddleDetectionFragment extends Fragment {
 
     // 绘制检测结果
     private void drawDetectionResults(List<BaseDetection> detections, long frameStartTime) {
-        if (overlayHolder == null || !isAdded() || getActivity() == null) {
+        if (binding == null || !previewRunning || overlayHolder == null || !isAdded() || getActivity() == null) {
             Log.e(TAG, "绘制失败：overlayHolder为空或Fragment已分离");
             return;
         }
@@ -515,8 +575,8 @@ public class PaddleDetectionFragment extends Fragment {
                     int overlayHeight = binding.overlayView.getHeight();
 
                     // 获取相机预览尺寸
-                    int previewWidth = uvcCamera.getPreviewSize().width;
-                    int previewHeight = uvcCamera.getPreviewSize().height;
+                    int previewWidth = this.previewWidth;
+                    int previewHeight = this.previewHeight;
 
                     // 从YOLODetector获取原始图像尺寸（如果可用）
                     int originalWidth = previewWidth;  // 默认使用预览尺寸
@@ -577,10 +637,17 @@ public class PaddleDetectionFragment extends Fragment {
             return;
         }
 
-        // 获取预览尺寸
-        int previewWidth = uvcCamera.getPreviewSize().width;
-        int previewHeight = uvcCamera.getPreviewSize().height;
-        Bitmap lastFrameBitmap = ImageProcessingUtils.yuv2BitmapNative(lastFrameData.clone(), previewWidth, previewHeight);
+        byte[] frameData;
+        float[][] detectionResults;
+        synchronized (frameLock) {
+            frameData = lastFrameData;
+            detectionResults = lastDetectionResults;
+        }
+        if (frameData == null || !previewRunning) {
+            Toast.makeText(requireContext(), "尚未收到相机图像", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Bitmap lastFrameBitmap = ImageProcessingUtils.yuv2BitmapNative(frameData, previewWidth, previewHeight);
         if (lastFrameBitmap == null) {
             Toast.makeText(requireContext(), "获取当前帧失败", Toast.LENGTH_SHORT).show();
             return;
@@ -599,9 +666,9 @@ public class PaddleDetectionFragment extends Fragment {
 
         // 绘制检测框
         if (paddleDetector != null) {
-            if (lastDetectionResults != null) {
+            if (detectionResults != null) {
                 List<BaseDetection> detections = new ArrayList<>();
-                for (float[] result : lastDetectionResults) {
+                for (float[] result : detectionResults) {
                     int labelIndex = (int)result[0];
                     float confidence = result[1];
                     float x = result[2];
@@ -626,31 +693,50 @@ public class PaddleDetectionFragment extends Fragment {
         lastFrameBitmap.recycle();
         resultBitmap.recycle();
 
-        Toast.makeText(requireContext(), "图片已保存", Toast.LENGTH_SHORT).show();
     }
 
     private void releaseCamera() {
-        if (uvcCamera != null) {
+        previewRunning = false;
+        UVCCamera camera = uvcCamera;
+        uvcCamera = null;
+        USBMonitor.UsbControlBlock controlBlock = cameraControlBlock;
+        cameraControlBlock = null;
+        if (camera != null) {
             try {
-                uvcCamera.stopPreview();
-                uvcCamera.close();
-                uvcCamera = null;
+                camera.destroy();
             } catch (Exception e) {
                 Log.e(TAG, "释放相机时出错", e);
             }
+        }
+        if (controlBlock != null) {
+            controlBlock.close();
+        }
+        synchronized (frameLock) {
+            lastFrameData = null;
+            lastDetectionResults = null;
+        }
+        if (binding != null) {
+            binding.captureButton.setEnabled(false);
         }
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        viewActive = true;
         if (usbMonitor != null) {
             usbMonitor.register();
+            requestSelectedDevice();
         }
     }
 
     @Override
     public void onPause() {
+        viewActive = false;
+        mainHandler.removeCallbacksAndMessages(null);
+        if (uiHandler != null) {
+            uiHandler.removeCallbacksAndMessages(null);
+        }
         if (usbMonitor != null) {
             usbMonitor.unregister();
         }
@@ -660,6 +746,8 @@ public class PaddleDetectionFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        viewActive = false;
+        mainHandler.removeCallbacksAndMessages(null);
         super.onDestroyView();
 
         // 释放资源
@@ -674,18 +762,28 @@ public class PaddleDetectionFragment extends Fragment {
     private void releaseResources() {
         // 释放相机资源
         releaseCamera();
+        if (usbMonitor != null) {
+            usbMonitor.destroy();
+            usbMonitor = null;
+        }
 
         // 释放UI线程Handler
-        uiHandler = null;
+        if (uiHandler != null) {
+            uiHandler.removeCallbacksAndMessages(null);
+            uiHandler = null;
+        }
 
         // 释放检测器
         if (paddleDetector != null) {
             paddleDetector.release();
+            paddleDetector = null;
         }
 
         // 释放绘图资源
         boxPaint = null;
         textPaint = null;
+        overlayHolder = null;
+        surface = null;
     }
 
     String getLabelName(int classIndex) {

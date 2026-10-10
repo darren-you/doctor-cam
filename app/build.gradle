@@ -14,11 +14,13 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
         // 编译OpenCV
         externalNativeBuild {
             cmake {
-                arguments '-DANDROID_PLATFORM=android-23', '-DANDROID_STL=c++_shared', "-DANDROID_TOOLCHAIN="
-                abiFilters  'arm64-v8a'
+                arguments '-DANDROID_STL=c++_shared'
                 cppFlags "-std=c++11"
             }
         }
@@ -35,7 +37,7 @@ android {
     externalNativeBuild {
         cmake {
             path "src/main/cpp/CMakeLists.txt"
-            version "3.10.2"
+            version "3.22.1"
         }
     }
 
@@ -44,6 +46,7 @@ android {
         targetCompatibility JavaVersion.VERSION_11
     }
     buildFeatures {
+        buildConfig true
         viewBinding true
     }
 }
@@ -59,9 +62,6 @@ dependencies {
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
     
-    // 原生库支持
-    implementation fileTree(dir: 'libs', include: ['*.so'])
-
     // OpenCV
     implementation project(':opencv')
 

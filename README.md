@@ -11,10 +11,14 @@ DoctorCam 是个人维护的原生 Android 摄像头与端侧视觉实验项目�
 
 上述能力按现有源码描述。历史图表、论文材料和源码中的参数不构成性能、准确率、临床效果或本次实机验证结果。
 
-## 架构
+## 架构拓扑
 
 ```mermaid
 flowchart LR
+    gradle[Gradle / AGP] --> app[app Java / XML / JNI]
+    opencv[仓内 OpenCV 4.2 Java / Native SDK] --> app
+    paddleSdk[仓内 Paddle Lite Native SDK] --> app
+    app --> apk[ARM64 Debug APK]
     device[USB UVC 摄像头] --> monitor[USBMonitor / UsbDeviceManager]
     monitor --> preview[预览与帧回调]
     preview --> paddle[Paddle Lite / JNI / C++]
@@ -27,7 +31,7 @@ flowchart LR
 
 ## 开发入口
 
-仓库根就是 Android Gradle 工程根，应用模块为 `app`，安装身份保持 `cn.darrenyou.doctorcam`。克隆后先阅读[开发与验证说明](docs/operations/android-app/development.md)，不要直接把现有源码当作可复现的发布工程。
+仓库根就是 Android Gradle 工程根，应用模块为 `app`，安装身份保持 `cn.darrenyou.doctorcam`。准备 JDK、SDK 35、NDK 17.2.4988734 与 CMake 3.22.1 后，可构建本地 ARM64 验证包，完整准备与运行命令见[开发与验证说明](docs/operations/android-app/development.md)。
 
 ```bash
 ./gradlew --version
@@ -35,7 +39,7 @@ flowchart LR
 ./gradlew --no-daemon -Pandroid.builder.sdkDownload=false :app:assembleDebug
 ```
 
-第二、三条命令用于检查当前配置与构建，现状仍可能失败。2026-10-10 本机已验证 Wrapper 可启动，但 Android 配置阶段报 NDK 未配置，未生成 APK；同时存在 OpenCV Gradle 路径与真实目录不一致。详见开发文档，未通过修改包名、升级工具链或替换依赖掩盖这些缺口。
+APK 输出为 `app/build/outputs/apk/debug/app-debug.apk`。应用需要真实 USB UVC 摄像头；ARM64 模拟器可用于启动、Native 加载及模型回归，未连接 USB 摄像头时设备列表显示“暂无设备”。
 
 ## 文档与治理
 

@@ -1,7 +1,9 @@
 package cn.darrenyou.doctorcam;
 
 import android.content.Context;
+import android.Manifest;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -10,6 +12,9 @@ import android.widget.ArrayAdapter;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
@@ -26,6 +31,19 @@ public class UvcDevicesFragment extends Fragment implements UsbDeviceManager.Dev
     private UsbDeviceManager usbDeviceManager;
     private DeviceListAdapter adapter;
     private final List<UsbDeviceManager.UsbDeviceInfo> deviceList = new ArrayList<>();
+    private Bundle pendingNavigationArguments;
+    private int pendingNavigationAction;
+    private final ActivityResultLauncher<String> cameraPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+                if (granted) {
+                    navigateToSelectedDevice();
+                } else {
+                    pendingNavigationArguments = null;
+                    if (binding != null) {
+                        android.widget.Toast.makeText(requireContext(), "UVC 摄像头需要相机权限", android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
 
     @Override
     public View onCreateView(
@@ -79,18 +97,38 @@ public class UvcDevicesFragment extends Fragment implements UsbDeviceManager.Dev
     private void navigateToPreview(int position, int actionId) {
         UsbDeviceManager.UsbDeviceInfo deviceInfo = deviceList.get(position);
         
-        // 请求USB设备权限
-        usbDeviceManager.requestPermission(deviceInfo.getDevice());
-
         // 传递设备信息到目标Fragment
         Bundle args = new Bundle();
         args.putInt("deviceId", deviceInfo.getDeviceId());
         args.putInt("vendorId", deviceInfo.getVendorId());
         args.putInt("productId", deviceInfo.getProductId());
 
-        // 导航到目标页面
-        NavHostFragment.findNavController(UvcDevicesFragment.this)
-                .navigate(actionId, args);
+        pendingNavigationArguments = args;
+        pendingNavigationAction = actionId;
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED) {
+            navigateToSelectedDevice();
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA);
+        }
+    }
+
+    private void navigateToSelectedDevice() {
+        if (binding == null || pendingNavigationArguments == null) {
+            return;
+        }
+        int selectedDeviceId = pendingNavigationArguments.getInt("deviceId");
+        for (UsbDeviceManager.UsbDeviceInfo device : deviceList) {
+            if (device.getDeviceId() == selectedDeviceId) {
+                Bundle arguments = pendingNavigationArguments;
+                pendingNavigationArguments = null;
+                // USB 权限由目标页面的 monitor 请求，避免导航时丢失授权回调。
+                NavHostFragment.findNavController(this).navigate(pendingNavigationAction, arguments);
+                return;
+            }
+        }
+        pendingNavigationArguments = null;
+        android.widget.Toast.makeText(requireContext(), "所选摄像头已断开", android.widget.Toast.LENGTH_SHORT).show();
     }
     
     @Override
@@ -122,7 +160,9 @@ public class UvcDevicesFragment extends Fragment implements UsbDeviceManager.Dev
         super.onDestroyView();
         if (usbDeviceManager != null) {
             usbDeviceManager.release();
+            usbDeviceManager = null;
         }
+        pendingNavigationArguments = null;
         binding = null;
     }
     
@@ -131,6 +171,9 @@ public class UvcDevicesFragment extends Fragment implements UsbDeviceManager.Dev
         // 确保在主线程中执行UI更新
         if (isAdded() && getActivity() != null) {
             getActivity().runOnUiThread(() -> {
+                if (binding == null) {
+                    return;
+                }
                 deviceList.clear();
                 deviceList.addAll(devices);
                 adapter.notifyDataSetChanged();

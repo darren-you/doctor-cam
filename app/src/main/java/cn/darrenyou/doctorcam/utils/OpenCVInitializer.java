@@ -8,7 +8,7 @@ import org.opencv.core.Core;
 
 public class OpenCVInitializer {
     private static final String TAG = "OpenCVInitializer";
-    private static boolean isInitialized = false;
+    private static volatile boolean isInitialized = false;
 
     /**
      * 初始化 OpenCV
@@ -25,11 +25,7 @@ public class OpenCVInitializer {
         }
 
         try {
-            // 使用推荐的方法加载 OpenCV 原生库
-            System.loadLibrary("opencv_java4");
-            Log.d(TAG, "OpenCV 原生库加载成功");
-
-            // 初始化 OpenCV
+            // 使用与仓内 Native SDK 配套的 OpenCV 4.2.0 Java 加载入口。
             boolean success = OpenCVLoader.initDebug();
             if (success) {
                 isInitialized = true;
@@ -49,40 +45,8 @@ public class OpenCVInitializer {
                     callback.onOpenCVInitialized(false);
                 }
             }
-        } catch (UnsatisfiedLinkError e) {
-            Log.e(TAG, "无法加载 OpenCV 原生库: " + e.getMessage());
-            // 尝试使用备选方法
-            tryAlternativeInitialization(context, callback);
-        } catch (Exception e) {
+        } catch (LinkageError | Exception e) {
             Log.e(TAG, "OpenCV 初始化异常: " + e.getMessage());
-            if (callback != null) {
-                callback.onOpenCVInitialized(false);
-            }
-        }
-    }
-
-    /**
-     * 尝试备选初始化方法
-     */
-    private static void tryAlternativeInitialization(Context context, final OpenCVInitCallback callback) {
-        try {
-            Log.d(TAG, "尝试使用备选方法初始化 OpenCV");
-            // 尝试直接加载库
-            boolean success = OpenCVLoader.initLocal();
-            if (success) {
-                isInitialized = true;
-                Log.d(TAG, "OpenCV 备选初始化成功");
-                if (callback != null) {
-                    callback.onOpenCVInitialized(true);
-                }
-            } else {
-                Log.e(TAG, "OpenCV 备选初始化失败");
-                if (callback != null) {
-                    callback.onOpenCVInitialized(false);
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "OpenCV 备选初始化异常: " + e.getMessage());
             if (callback != null) {
                 callback.onOpenCVInitialized(false);
             }

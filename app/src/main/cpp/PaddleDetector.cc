@@ -90,7 +90,8 @@ Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeProcess(
     LOGE("Invoke AndroidBitmap_lockPixels() failed!");
     return JNI_FALSE;
   }
-  cv::Mat bmpImage(bitmapInfo.height, bitmapInfo.width, CV_8UC4, bitmapPixels);
+  cv::Mat bmpImage(bitmapInfo.height, bitmapInfo.width, CV_8UC4, bitmapPixels,
+                   bitmapInfo.stride);
   cv::Mat rgbaImage;
   bmpImage.copyTo(rgbaImage);
   if (AndroidBitmap_unlockPixels(env, jARGB8888ImageBitmap) < 0) {
@@ -115,7 +116,7 @@ Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeProcess(
       return JNI_FALSE;
     }
     cv::Mat bmpImage(bitmapInfo.height, bitmapInfo.width, CV_8UC4,
-                     bitmapPixels);
+                     bitmapPixels, bitmapInfo.stride);
     rgbaImage.copyTo(bmpImage);
     if (AndroidBitmap_unlockPixels(env, jARGB8888ImageBitmap) < 0) {
       LOGE("Invoke AndroidBitmap_unlockPixels() failed!");
@@ -153,9 +154,14 @@ Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeProcessWithResults(
         return nullptr;
     }
 
-    // 直接使用Bitmap数据，避免额外拷贝
-    cv::Mat rgbaImage(bitmapInfo.height, bitmapInfo.width, CV_8UC4, bitmapPixels);
-    AndroidBitmap_unlockPixels(env, jARGB8888ImageBitmap);
+    // Bitmap 像素只在锁定期间有效；复制后由 OpenCV 持有预测输入。
+    cv::Mat bitmapImage(bitmapInfo.height, bitmapInfo.width, CV_8UC4,
+                        bitmapPixels, bitmapInfo.stride);
+    cv::Mat rgbaImage = bitmapImage.clone();
+    if (AndroidBitmap_unlockPixels(env, jARGB8888ImageBitmap) < 0) {
+        LOGE("Failed to unlock pixels");
+        return nullptr;
+    }
 
     // 获取Pipeline实例
     Pipeline *pipeline = reinterpret_cast<Pipeline *>(ctx);
@@ -166,12 +172,10 @@ Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeProcessWithResults(
     pipeline->GetDetector()->Predict(rgbaImage, &results, &preprocessTime, &predictTime, &postprocessTime);
 
     // 预加载标签列表到哈希表
-    static std::unordered_map<std::string, int> labelIndexMap;
-    if (labelIndexMap.empty()) {
-        const auto& labelList = pipeline->GetDetector()->GetLabelList();
-        for (size_t i = 0; i < labelList.size(); i++) {
-            labelIndexMap[labelList[i]] = i;
-        }
+    std::unordered_map<std::string, int> labelIndexMap;
+    const auto& labelList = pipeline->GetDetector()->GetLabelList();
+    for (size_t i = 0; i < labelList.size(); i++) {
+        labelIndexMap[labelList[i]] = i;
     }
 
     // 创建结果数组
@@ -187,8 +191,7 @@ Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeProcessWithResults(
         return nullptr;
     }
 
-    // 静态数组避免重复分配
-    static jfloat itemData[6];
+    jfloat itemData[6];
 
     // 填充结果
     for (size_t i = 0; i < results.size(); i++) {
@@ -208,7 +211,7 @@ Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeProcessWithResults(
         jfloatArray item = env->NewFloatArray(6);
         if (item == nullptr) {
             LOGE("Failed to create float array");
-            continue;
+            return nullptr;
         }
 
         env->SetFloatArrayRegion(item, 0, 6, itemData);

@@ -9,7 +9,7 @@ public class PaddleDetector {
 
     private long ctx = 0;
 
-    public boolean init(String modelDir,
+    public synchronized boolean init(String modelDir,
                         String labelPath,
                         int cpuThreadNum,
                         String cpuPowerMode,
@@ -18,6 +18,7 @@ public class PaddleDetector {
                         float[] inputMean,
                         float[] inputStd,
                         float scoreThreshold) {
+        release();
         ctx = nativeInit(
                 modelDir,
                 labelPath,
@@ -28,12 +29,13 @@ public class PaddleDetector {
                 inputMean,
                 inputStd,
                 scoreThreshold);
-        return ctx == 0;
+        return ctx != 0;
     }
 
-    public boolean initDefault(String modeFilePath, String labelFilePath, String cpuPowerMode) {
+    public synchronized boolean initDefault(String modeFilePath, String labelFilePath, String cpuPowerMode) {
         float[] inputMean = {0.485F, 0.456F, 0.406F};
         float[] inputStd = {0.229F, 0.224F, 0.225F};
+        release();
         ctx = nativeInit(
                 modeFilePath,
                 labelFilePath,
@@ -44,17 +46,19 @@ public class PaddleDetector {
                 inputMean,
                 inputStd,
                 0.5F);
-        return ctx == 0;
+        return ctx != 0;
     }
 
-    public boolean release() {
+    public synchronized boolean release() {
         if (ctx == 0) {
             return false;
         }
-        return nativeRelease(ctx);
+        long context = ctx;
+        ctx = 0;
+        return nativeRelease(context);
     }
 
-    public boolean process(Bitmap ARGB8888ImageBitmap, String savedImagePath) {
+    public synchronized boolean process(Bitmap ARGB8888ImageBitmap, String savedImagePath) {
         if (ctx == 0) {
             return false;
         }
@@ -68,11 +72,15 @@ public class PaddleDetector {
      * @param ARGB8888ImageBitmap
      * @return
      */
-    public float[][] processWithResults(Bitmap ARGB8888ImageBitmap) {
+    public synchronized float[][] processWithResults(Bitmap ARGB8888ImageBitmap) {
         if (ctx == 0) {
             return new float[0][];
         }
-        return nativeProcessWithResults(ctx, ARGB8888ImageBitmap);
+        float[][] results = nativeProcessWithResults(ctx, ARGB8888ImageBitmap);
+        if (results == null) {
+            throw new IllegalStateException("Native 推理未返回有效结果");
+        }
+        return results;
     }
 
     private static native float[][] nativeProcessWithResults(long ctx, Bitmap ARGB8888ImageBitmap);
