@@ -25,6 +25,22 @@
 
 旧仓内 SDK、Java JAR / JNI、静态模块、非目标 ABI 和旧 `app/release` 输出已删除。OpenCV 使用官方最新 5.0.0.1 修复包，Paddle Lite 使用官方最新 v2.14-rc with_extra，ONNX Runtime 使用 1.31.0；UVC 改用正式 Maven 发行的 UVCAndroid 1.0.13。Native 工具链采用 NDK 30 / CMake 4.1.2，Paddle 使用同版官方 bundled 静态库链接到本仓 JNI。Android 按正式最新 SDK 编译，保留 min 26、原安装身份、原模型与统一应用版本合同。
 
+## 三方库版本事实
+
+截至 2026-10-10，按官方 Maven metadata / Release 核对并固定实际消费的正式版本；Paddle 的上游 latest 仍明确为 v2.14-rc。版本号写在 Version Catalog，不在应用源码重复保存。
+
+| 依赖 | 固定版本与装配 |
+| --- | --- |
+| AndroidX Core / Activity Compose / Lifecycle | 1.19.1 / 1.13.0 / 2.11.0；Core 直接消费 `androidx.core:core`，当前 KTX 扩展已归入主制品 |
+| Compose BOM | 2026.09.00；UI / Runtime / Foundation / UI Test 1.12.1，Material 3 1.4.0，Material Icons Extended 1.7.8 |
+| Navigation Compose / AndroidX Hilt Compose | 2.10.2 / 1.4.0；保留类型安全路由与当前 `hiltViewModel` 入口 |
+| Dagger / Hilt / KSP | 2.60.1 / 2.60.1 / 2.3.12；使用 AGP 9 与 KSP 2 |
+| Kotlin Serialization / Coroutines Android | 1.11.0 / 1.11.0；后者显式声明，应用不再靠传递依赖获得协程 |
+| AndroidX Test Runner / Test JUnit / Espresso | 1.7.0 / 1.3.0 / 3.7.0；JUnit 4 仍为最新 4.13.2 |
+| UVC 传递依赖 | AppCompat 1.8.0、Annotation 1.11.0、Hutool Core 5.8.48 以约束统一；保留 UVC 实际调用的依赖 |
+
+Compose 各组件按[官方 BOM 映射](https://developer.android.com/develop/ui/compose/bom/bom-mapping)统一，不将 alpha / beta / RC Compose BOM 混入正式应用；已停更但仍提供所用图标的 Material Icons Extended 按其正式最新制品消费。升级是否可运行由最终解析依赖、产包与两种页大小的 Android 回归确认，不以目录版本号替代执行证据。
+
 ## 准备与构建
 
 ```bash
