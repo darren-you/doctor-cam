@@ -6,11 +6,11 @@
 
 | 事实 | 当前源码 |
 | --- | --- |
-| Wrapper / AGP | Gradle 8.13 / Android Gradle Plugin 8.13.2 |
-| Kotlin / JVM | Kotlin 2.3.10，Java / Kotlin 目标 17；Gradle 使用 JDK 17 及以上 |
-| UI 与状态 | Compose BOM 2026.03.00、Material 3、Navigation Compose 2.9.7、Lifecycle / ViewModel / StateFlow |
-| 依赖装配 | Hilt 2.58、KSP 2.3.6、Version Catalog |
-| Android SDK | compile / target 36，min 26；AGP 默认 Build Tools 35.0.0 |
+| Wrapper / AGP | Gradle 9.8.1 / Android Gradle Plugin 9.4.1 |
+| Kotlin / JVM | Kotlin 2.4.21，AGP 内置 Kotlin；Java / Kotlin 目标 17，本轮构建使用 JDK 21 |
+| UI 与状态 | Compose BOM 2026.09.00、Material 3、Navigation Compose 2.10.2、Lifecycle 2.11.0 / ViewModel / StateFlow |
+| 依赖装配 | Hilt 2.60.1、KSP 2.3.12、Version Catalog；显式 Coroutines 1.11.0 |
+| Android SDK | compile 37.2 / target 37，min 26；显式 Build Tools 37.0.0 |
 | Native | NDK 30.0.16248370、CMake 4.1.2、C++17、arm64-v8a |
 | OpenCV | org.opencv:opencv:5.0.0.1，官方 Java / Native / Prefab；运行 API 版本 5.0.0 |
 | Paddle Lite | 官方最新 v2.14-rc with_extra；固定制品 URL 与整包 SHA-256，构建时仅准备头文件和 bundled 静态库 |
@@ -19,11 +19,11 @@
 | 本地版本 | 工程根 `release.json`：1.0.0；Core 本地验证编号 1 |
 | 发布装配 | 仓内固定 `fast-deploy-core`；正式 Job、配置与签名渠道尚未接入 |
 
-事实源为 [Wrapper](../../../gradle/wrapper/gradle-wrapper.properties)、[版本目录](../../../gradle/libs.versions.toml)、[应用 Gradle](../../../app/build.gradle.kts)、[Paddle 准备脚本](../../../tool/prepare_paddle_lite.py)、[CMake](../../../app/src/main/cpp/CMakeLists.txt)和 [release.json](../../../release.json)。[AGP 8.13 官方兼容性说明](https://developer.android.google.cn/build/releases/agp-8-13-0-release-notes?hl=en)确认 8.13.2 支持 Kotlin 2.3，要求 Gradle 8.13 / JDK 17，默认 Build Tools 35.0.0。
+事实源为 [Wrapper](../../../gradle/wrapper/gradle-wrapper.properties)、[版本目录](../../../gradle/libs.versions.toml)、[应用 Gradle](../../../app/build.gradle.kts)、[Paddle 准备脚本](../../../tool/prepare_paddle_lite.py)、[CMake](../../../app/src/main/cpp/CMakeLists.txt)和 [release.json](../../../release.json)。[官方 AGP 兼容表](https://developer.android.com/build/releases/about-agp)要求 AGP 9.4 使用 Gradle 9.6 及以上；本仓固定正式最新版 9.8.1，不使用动态版本。
 
-母版当前的 Hilt 2.57.2 在本仓真实编译时无法读取 Kotlin 2.3 元数据，因此 DoctorCam 固定为 Hilt 2.58，并使用当前 `androidx.hilt.lifecycle.viewmodel.compose` 入口。2.58 的编译器消费支持新元数据的官方依赖，未忽略校验；[官方 Release](https://github.com/google/dagger/releases/tag/dagger-2.58)保留 AGP 8 装配，未引入强制 AGP 9 升级。完整 Hilt 代码生成、聚合 Java 编译，以及 Debug 主包与 instrumentation 包构建已通过。
+最新 AndroidX Core、Navigation 与 Compose UI 的实际 AAR 要求 compile SDK 37 和 AGP 9.1 及以上；Hilt 2.59 起要求 AGP 9。因此按[官方内置 Kotlin 迁移](https://developer.android.com/build/migrate-to-built-in-kotlin)删除 `org.jetbrains.kotlin.android` 插件，保留 Compose / Serialization 插件并统一为 2.4.21；根构建脚本显式提供同版 KGP，保证实际编译器版本与目录一致。KSP 2 与 Hilt 使用当前正式装配，不关闭内置 Kotlin 或恢复旧 DSL。
 
-旧仓内 SDK、Java JAR / JNI、静态模块、非目标 ABI 和旧 `app/release` 输出已删除。OpenCV 使用官方最新 5.0.0.1 修复包，Paddle Lite 使用官方最新 v2.14-rc with_extra，ONNX Runtime 使用 1.31.0；UVC 改用正式 Maven 发行的 UVCAndroid 1.0.13。Native 工具链采用 NDK 30 / CMake 4.1.2，Paddle 使用同版官方 bundled 静态库链接到本仓 JNI。Android 平台与应用版本合同仍按模板保持 compile / target 36、min 26。
+旧仓内 SDK、Java JAR / JNI、静态模块、非目标 ABI 和旧 `app/release` 输出已删除。OpenCV 使用官方最新 5.0.0.1 修复包，Paddle Lite 使用官方最新 v2.14-rc with_extra，ONNX Runtime 使用 1.31.0；UVC 改用正式 Maven 发行的 UVCAndroid 1.0.13。Native 工具链采用 NDK 30 / CMake 4.1.2，Paddle 使用同版官方 bundled 静态库链接到本仓 JNI。Android 按正式最新 SDK 编译，保留 min 26、原安装身份、原模型与统一应用版本合同。
 
 ## 准备与构建
 
@@ -37,7 +37,7 @@ git submodule update --init fast-deploy-core
 
 ```bash
 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-  "platform-tools" "platforms;android-36" "build-tools;35.0.0" \
+  "platform-tools" "platforms;android-37.2" "build-tools;37.0.0" \
   "ndk;30.0.16248370" "cmake;4.1.2"
 ./gradlew --version
 ./gradlew --no-daemon -Pandroid.builder.sdkDownload=false help
@@ -52,7 +52,7 @@ git submodule update --init fast-deploy-core
 
 首次解析依赖需要 Google Maven、Maven Central、Gradle 插件仓库及 Paddle 官方 GitHub Release；`--offline` 只在所需依赖已完整缓存时使用。命令关闭 SDK 自动下载，让缺失组件明确失败。仓内 Core 子模块必须先物化，否则版本输入不能解析。
 
-AGP 生成 variant 对应的 `BuildConfig`；Compose 页面不再使用 ViewBinding 或 XML 导航。OpenCV 由 `implementation(libs.opencv)` 提供同版本 Java / Native，CMake 通过 Prefab 的 `OpenCV::opencv_java5` 链接共享库。`preparePaddleLiteSdk` 在构建前校验官方压缩包 SHA-256，只准备两个头文件与 ARM64 bundled 静态库到 `app/build/native-sdk/paddle-lite/`；该目录与其他构建产物一样不提交 Git，干净 checkout 可独立重建。共享 C++ 运行库只打包本项目使用的 NDK 30 版本；AGP 8.13 的项目 Native 合并顺序与精确重复项规则共同确定归属，产包后仍须核对实际库的 SHA-256。
+AGP 生成 variant 对应的 `BuildConfig`；Compose 页面不再使用 ViewBinding 或 XML 导航。OpenCV 由 `implementation(libs.opencv)` 提供同版本 Java / Native，CMake 通过 Prefab 的 `OpenCV::opencv_java5` 链接共享库。`preparePaddleLiteSdk` 在构建前校验官方压缩包 SHA-256，只准备两个头文件与 ARM64 bundled 静态库到 `app/build/native-sdk/paddle-lite/`；该目录与其他构建产物一样不提交 Git，干净 checkout 可独立重建。共享 C++ 运行库只打包本项目使用的 NDK 30 版本；项目 Native 合并顺序与精确重复项规则共同确定归属，产包后仍须核对实际库的 SHA-256。
 
 ## 安装与启动
 
@@ -141,7 +141,7 @@ UVC 从 `org.uvccamera:lib:0.0.13` 切换为 [UVCAndroid 1.0.13](https://github.
 ```bash
 ./gradlew --no-daemon -Pandroid.builder.sdkDownload=false \
   :app:verifyDebugNativeAlignment :app:bundleDebug
-"$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 \
+"$ANDROID_HOME/build-tools/37.0.0/zipalign" -c -P 16 4 \
   app/build/outputs/apk/debug/app-debug.apk
 java -jar <bundletool-all.jar> dump config \
   --bundle=app/build/outputs/bundle/debug/app-debug.aab
@@ -149,7 +149,7 @@ java -jar <bundletool-all.jar> dump config \
 
 [检查脚本](../../../tool/check_native_alignment.py)检查全部 ELF LOAD 段对齐、offset / address 同余、RELRO 保护页与其他可写段的隔离，以及 APK 中未压缩 SO 的真实数据偏移。完整 JSON 写入 `app/build/reports/native-alignment-debug.json`。RELRO 按 [Android linker 的真实 mprotect 语义](https://android.googlesource.com/platform/bionic/+/refs/heads/android16-release/linker/linker_phdr.cpp)向页边界取整；允许 lld 留出的隔离间隙，不能仅凭原末端余数拒绝合规 SDK。AAB 的 `uncompress_native_libraries` 必须启用且 `alignment` 为 `PAGE_ALIGNMENT_16K`。本地 Debug AAB 同样只用于验证，不进入正式分发。
 
-应用在 Manifest 声明 `android:pageSizeCompat="disabled"`，拒绝借助 Android 16 的兼容模式加载旧 4 KiB 库。按 [Android 官方页大小指导](https://developer.android.com/guide/practices/page-sizes)准备独立测试环境。本机 Apple M4 使用官方稳定 Emulator 37.2.12 与 Android 17 / API 37.0 的正式 ARM64 16 KiB 镜像；应用 compile / target SDK 仍为模板的 36：
+应用在 Manifest 声明 `android:pageSizeCompat="disabled"`，拒绝借助 Android 16 的兼容模式加载旧 4 KiB 库。按 [Android 官方页大小指导](https://developer.android.com/guide/practices/page-sizes)准备独立测试环境。本机 Apple M4 使用官方稳定 Emulator 37.2.12 与 Android 17 / API 37.0 的正式 ARM64 16 KiB 镜像。应用 compile 37.2 / target 37，不使用新增 minor API，仍须在 API 37.0 与原 API 34 Pixel 上验证实际运行：
 
 ```bash
 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
