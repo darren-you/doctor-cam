@@ -1,45 +1,46 @@
 # DoctorCam
 
-DoctorCam 是个人维护的原生 Android 摄像头与端侧视觉实验项目，使用 Java、AndroidX、USB UVC、OpenCV、ONNX Runtime 和 Paddle Lite / JNI。源码实现了设备枚举、预览、抓拍、检测结果叠加及图片保存；当前仍是原型工程，不代表已完成商店发布、设备兼容性或医疗用途验证。
+DoctorCam 是个人维护的 Android USB UVC 摄像头与端侧视觉实验项目。应用使用 Kotlin、Jetpack Compose、Material 3、类型安全 Navigation Compose、Hilt 与协程 / StateFlow；OpenCV、Paddle Lite / JNI 和 ONNX Runtime 承载图像转换与推理。项目仍处于原型阶段，不代表已完成商店发布、摄像头兼容性或医疗用途验证。
 
 ## 当前能力
 
-- 通过 USBMonitor 枚举设备、监听插拔并申请 USB 访问权限；点击设备进入 UVC 预览，支持抓拍保存。
-- 长按设备进入 Paddle Lite 检测页：摄像头帧经图像转换、JNI / C++ 推理、检测框绘制后可保存到相册。
-- 保留 ONNX Runtime Java 检测实现，包含 320 × 320 letterbox 预处理、置信度筛选、NMS 与坐标还原；当前列表中的 ONNX 跳转被注释，不是默认可选入口。
-- 包内提供 ONNX / Paddle 模型资源；图像写入系统相册，当前未实现账号、后端 API 或数据库服务。
+- 设备列表观察 Android USB 插拔与视频设备；轻点设备进入 UVC 预览，长按进入 Paddle 检测。
+- 相机页按真实设备 ID、VID、PID 申请和消费 USB 权限，显示预览、检测框与连接状态，并抓拍保存到系统相册。
+- Paddle 使用包内既有模型和标签，通过 JNI 执行推理；ONNX 保留为内部推理引擎，没有公开的设备列表入口。
+- Compose 单 Activity 装配页面与 ViewModel，TextureView 承载 UVC Surface，Compose Canvas 绘制同一帧的检测结果。
+- 全局 Debug Panel 默认展开，支持拖动、折叠和进入类型安全 TestPage；Release 编译检查唯一 `_debug` 开关。
 
-上述能力按现有源码描述。历史图表、论文材料和源码中的参数不构成性能、准确率、临床效果或本次实机验证结果。
+模型文件、历史论文和合成图像回归不提供医学准确率、检测性能或真实摄像头验收证据。
 
 ## 架构拓扑
 
 ```mermaid
 flowchart LR
-    gradle[Gradle / AGP] --> app[app Java / XML / JNI]
-    opencv[仓内 OpenCV 4.2 Java / Native SDK] --> app
-    paddleSdk[仓内 Paddle Lite Native SDK] --> app
-    app --> apk[ARM64 Debug APK]
-    device[USB UVC 摄像头] --> monitor[USBMonitor / UsbDeviceManager]
-    monitor --> preview[预览与帧回调]
-    preview --> paddle[Paddle Lite / JNI / C++]
-    preview --> onnx[ONNX Runtime Java 实验实现]
-    paddle --> overlay[检测结果叠加]
-    onnx --> overlay
-    preview --> storage[系统相册]
-    overlay --> storage
+    build[Gradle Kotlin DSL / Version Catalog / KSP] --> app[MainActivity / DoctorCamApp：Compose + Hilt]
+    app --> features[设备 / 相机 / TestPage：ViewModel + StateFlow]
+    devices[USB UVC 摄像头] --> camera[core/camera：设备观察与相机控制]
+    features --> camera
+    camera --> inference[core/inference：Paddle / ONNX]
+    opencv[仓内 OpenCV 4.2 SDK] --> camera
+    paddle[仓内 Paddle Lite / JNI 与原模型] --> inference
+    camera --> frame[独立抓拍位图与同帧结果]
+    frame --> media[core/media：系统相册]
+    app --> debug[core/ui：全局 Debug Panel]
+    version[release.json + 固定 Core] --> build
 ```
 
 ## 开发入口
 
-仓库根就是 Android Gradle 工程根，应用模块为 `app`，安装身份保持 `cn.darrenyou.doctorcam`。准备 JDK、SDK 35、NDK 17.2.4988734 与 CMake 3.22.1 后，可构建本地 ARM64 验证包，完整准备与运行命令见[开发与验证说明](docs/operations/android-app/development.md)。
+仓根是唯一 Android Gradle 工程根，应用模块为 `app`，安装身份为 `cn.darrenyou.doctorcam`。准备 JDK 17 及以上、SDK 36、NDK 17.2.4988734 与 CMake 3.22.1，物化仓内固定的 `fast-deploy-core` 子模块后构建本地 ARM64 验证包。完整步骤见[开发与验证说明](docs/operations/android-app/development.md)。
 
 ```bash
+git submodule update --init fast-deploy-core
 ./gradlew --version
-./gradlew --no-daemon -Pandroid.builder.sdkDownload=false help
 ./gradlew --no-daemon -Pandroid.builder.sdkDownload=false :app:assembleDebug
+./gradlew --no-daemon -Pandroid.builder.sdkDownload=false :app:assembleDebugAndroidTest
 ```
 
-APK 输出为 `app/build/outputs/apk/debug/app-debug.apk`。应用需要真实 USB UVC 摄像头；ARM64 模拟器可用于启动、Native 加载及模型回归，未连接 USB 摄像头时设备列表显示“暂无设备”。
+Debug APK 位于 `app/build/outputs/apk/debug/app-debug.apk`，Android 8.0 / API 26 及以上可安装。ARM64 模拟器或未接入 UVC 摄像头的真机可验证启动、页面交互、Native 与模型执行；设备列表显示“暂无设备”。实际预览、抓拍、USB 授权与拔插必须连接真实 UVC 摄像头验收。
 
 ## 文档与治理
 
@@ -48,7 +49,7 @@ APK 输出为 `app/build/outputs/apk/debug/app-debug.apk`。应用需要真实 U
 - [Android 架构与实现边界](docs/design/android-app/architecture.md)
 - [开发、构建与发布边界](docs/operations/android-app/development.md)
 - [仓库元数据](repo-meta.yaml)；[AI 协作规则](AGENTS.md)
-- [darren-space Android 工程标准](https://github.com/darren-you/darren-space/blob/master/harness/docs/workspace/standards/android-app/android-app-golden-path.md)
+- [Android 工程标准](https://github.com/darren-you/darren-space/blob/master/harness/docs/workspace/standards/android-app/android-app-golden-path.md)
 - [统一应用版本标准](https://github.com/darren-you/darren-space/blob/master/harness/docs/workspace/standards/client-version-golden-path.md)
 
-工作区逻辑身份为 `doctor-cam`，归属 `work-personal`，真实技术域与交付面均为 `android-app`。`lifecycle: incubating` 表达实验原型状态，不表示 Android 工程标准已经通过。当前没有 Fast Deploy Job、Core 子模块或正式发布入口；元数据中的 `release-android-app` 只标识该交付面的标准工作流方向。后续发布接入须单独完成构建、版本、签名及设备验证。
+工作区逻辑身份为 `doctor-cam`，归属 `work-personal`。`release.json` 维护人工版本，Gradle 通过仓内固定 Core 消费本地验证输入或正式编号快照；本地 APK 标记 `client_local_validation=true`。当前尚未登记 Fast Deploy Job、发布配置、正式签名与渠道。本地构建与运行不等于正式发布或完整 Android 工程标准验收。

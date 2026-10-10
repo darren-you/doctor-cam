@@ -1,0 +1,3 @@
+[submodule "fast-deploy-core"]
+	path = fast-deploy-core
+	url = git@github.com:darren-you/fast-deploy-core.git

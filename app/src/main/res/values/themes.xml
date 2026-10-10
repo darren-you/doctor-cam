@@ -1,13 +1,9 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Base.Theme.DoctorCam" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- 设置状态栏和导航栏完全透明 -->
+<resources>
+    <style name="Theme.DoctorCam" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <!-- 允许内容绘制到系统栏的后面 -->
-        <item name="android:windowTranslucentStatus">false</item>
-        <item name="android:windowTranslucentNavigation">false</item>
-        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
     </style>
-
-    <style name="Theme.DoctorCam" parent="Base.Theme.DoctorCam" />
 </resources>

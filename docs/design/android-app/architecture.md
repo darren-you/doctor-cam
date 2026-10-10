@@ -1,40 +1,55 @@
 # Android 架构与实现边界
 
-DoctorCam 是 Java / XML 界面的单模块 Android 原型。仓根负责 Gradle 装配，`app` 承载页面、UVC 设备接入与端侧检测；没有自有后端、账号、网络 API 或数据库工程。
+DoctorCam 使用 Kotlin、Compose、Material 3、类型安全 Navigation Compose、Hilt、ViewModel 与协程 / StateFlow。仓根是 Android 工程根，`app` 为业务应用，`:opencv` 提供仓内同版本 Java / Native SDK；Paddle 以 Java JNI 和 C++ 边界连接既有预编译库。应用的持久输出是系统相册图片，没有自有后端、账号或业务数据库。
 
-## 页面与设备生命周期
+## 页面与依赖装配
 
-[MainActivity](../../../app/src/main/java/cn/darrenyou/doctorcam/MainActivity.java)装配 Navigation Host、权限和 OpenCV 初始化。[设备列表页](../../../app/src/main/java/cn/darrenyou/doctorcam/UvcDevicesFragment.java)通过 [UsbDeviceManager](../../../app/src/main/java/cn/darrenyou/doctorcam/manager/UsbDeviceManager.java)监听 USB 插拔并枚举视频设备。导航前检查相机权限，USB 设备授权由目标页持有的 USBMonitor 请求和消费，按实际 `deviceId` 匹配所选设备。
+[DoctorCamApplication](../../../app/src/main/java/cn/darrenyou/doctorcam/DoctorCamApplication.kt)建立 Hilt 依赖图，[MainActivity](../../../app/src/main/java/cn/darrenyou/doctorcam/MainActivity.kt)负责单 Activity、边到边系统栏与 Material 3 主题。[DoctorCamApp](../../../app/src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt)使用类型安全 `DevicesRoute`、`CameraRoute`、`TestRoute` 组织 Compose 导航。
 
-点击设备进入 [UvcPreviewFragment](../../../app/src/main/java/cn/darrenyou/doctorcam/UvcPreviewFragment.java)，长按进入 [PaddleDetectionFragment](../../../app/src/main/java/cn/darrenyou/doctorcam/PaddleDetectionFragment.java)。[导航图](../../../app/src/main/res/navigation/nav_graph.xml)还声明 ONNX 页面，但设备列表中的 ONNX 跳转目前被注释。不能据此声称用户已能在界面切换两种推理后端。
+[设备列表页](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/devices/DevicesPage.kt)通过 ViewModel 收集实际 USB 视频设备。轻点进入普通预览，长按进入 Paddle 检测。导航携带设备 ID、VID、PID 与检测模式；相机权限缺失时由 Activity Result API 请求，授权后再次核对设备是否仍存在。
 
-普通预览由 UVCCamera 输出到 TextureView，支持抓拍；检测页注册 NV21 帧回调，将画面转换为 Bitmap，再推理并通过透明 SurfaceView 绘制检测框。摄像头关闭、USBMonitor 注销和模型释放分别由页面生命周期代码处理，仍需在真实设备验证拔插、切页和异常恢复。
+[相机页](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/camera/CameraPage.kt)通过 `AndroidView` 挂载 TextureView；UI 拥有并释放 Surface，相机控制器只借用。页面按真实帧比例居中显示预览，Compose Canvas 根据检测结果的原图尺寸缩放绘制框和标签。没有完整帧或正在保存时，抓拍按钮不可用。
+
+页面在 `ON_RESUME` 打开所选设备，在 `ON_PAUSE` 和离开组合时关闭会话；[CameraViewModel](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/camera/CameraViewModel.kt)销毁时释放控制器线程。保存期间通过独立位图保留同一帧的画面与检测结果，避免下一帧替换保存输入。
+
+## USB 与相机会话
+
+- [UsbDeviceRepository](../../../app/src/main/java/cn/darrenyou/doctorcam/core/camera/UsbDeviceRepository.kt)只观察系统 USB 插拔事件和 UsbManager 设备表，以 StateFlow 提供视频设备列表；列表不持有 USBMonitor 或相机连接。
+- [UsbCameraController](../../../app/src/main/java/cn/darrenyou/doctorcam/core/camera/UsbCameraController.kt)由每个相机 ViewModel 独占，拥有 USBMonitor、UVCCamera、控制连接、推理引擎与最近成功帧。设备资源操作在专属 HandlerThread / Looper 串行执行。
+- USB 授权请求、连接与回调按设备 ID、VID、PID 匹配；会话标识使已关闭页面的旧异步回调不能重开相机或覆盖新会话。
+- 预览尺寸只从摄像头实际声明的偶数宽高与 MJPEG / YUYV 格式中选择；连接或推理失败进入可见错误状态。断开、暂停或销毁时关闭 Native 相机、原始控制连接、监视器、模型及缓存位图。
+- 帧回调将 NV21 转为 ARGB8888，在推理成功后把位图与检测结果作为同一批次保存。抓拍返回独立位图，媒体保存入口负责消费和回收。
+
+这些是源码中的所有权和状态合同。没有真实摄像头时，测试不能证明 USB 授权、拔插、持续预览或抓拍已经通过。
 
 ## 两条推理实现
 
-| 实现 | 源码职责 | 当前边界 |
+[InferenceEngineFactory](../../../app/src/main/java/cn/darrenyou/doctorcam/core/inference/InferenceEngineFactory.kt)初始化 OpenCV，并按模式创建推理引擎；普通预览不创建模型。检测结果统一使用 `Detection`，携带类别、概率、边界与源图像尺寸。
+
+| 实现 | 职责 | 当前入口 |
 | --- | --- | --- |
-| [ONNX Runtime Java](../../../app/src/main/java/cn/darrenyou/doctorcam/onnx/OnnxYOLODetector.java) | 从 assets 加载模型；320 × 320 letterbox、张量构造、置信度筛选、按类 NMS、原图坐标还原 | 当前不是设备列表开放入口；没有实测精度或性能结论 |
-| [Paddle Java 接口](../../../app/src/main/java/cn/darrenyou/doctorcam/paddle/PaddleDetector.java)与 [C++ Pipeline](../../../app/src/main/cpp/Pipeline.cc) | Java 持有 Native 上下文，JNI 传入 Bitmap；C++ 预处理、Paddle Lite 推理和检测结果转换 | 当前默认检测入口；模拟器可验证包内模型执行，摄像头帧与效果须分别验收 |
+| [PaddleInferenceEngine](../../../app/src/main/java/cn/darrenyou/doctorcam/core/inference/PaddleInferenceEngine.kt) | 从当前 assets 复制原模型与标签；通过 Java / JNI 推理，校验结果并转换为统一检测类型 | 设备长按进入的默认检测实现 |
+| [OnnxInferenceEngine](../../../app/src/main/java/cn/darrenyou/doctorcam/core/inference/OnnxInferenceEngine.kt) | 原模型的 320 × 320 letterbox、RGB 张量、置信度筛选、按类 NMS 与原图坐标还原；释放自身 Session | 保留内部实现，设备列表没有公开入口 |
 
-模型资源分别位于 `app/src/main/assets/onnx/` 和 `app/src/main/assets/paddle/`。ONNX 类别常量与 Paddle 标签分别维护；新增模型不能默认复用相同输出格式、标签数量或坐标含义。
+Paddle 使用 `paddle/model.nb`、`paddle/doctor_label_list.txt` 和 `initDefault` 的既有输入尺寸、均值、方差、线程数、功耗模式与阈值。ONNX 使用 `onnx/best_320x320.onnx` 及自身类别顺序，两套标签不混用。重构没有替换模型或声称识别准确率改善。
 
-## 图像与保存
+## Native 图像与资源合同
 
-[ImageProcessingUtils](../../../app/src/main/java/cn/darrenyou/doctorcam/utils/ImageProcessingUtils.java)处理帧到 Bitmap 的转换，[DetectionUtils](../../../app/src/main/java/cn/darrenyou/doctorcam/utils/DetectionUtils.java)绘制检测框和标签。[StorageUtils](../../../app/src/main/java/cn/darrenyou/doctorcam/utils/StorageUtils.java)在 Android 10 及以上使用 MediaStore，低版本使用外部图片目录及媒体登记。现有实现没有图片上传链路。
+- [PaddleDetector.java](../../../app/src/main/java/cn/darrenyou/doctorcam/paddle/PaddleDetector.java)以非零上下文表示初始化成功；初始化、推理和释放同步访问。释放前清零 Java 上下文，重复释放不再次删除 Native 指针；重新初始化先释放旧上下文。
+- [PaddleDetector.cc](../../../app/src/main/cpp/PaddleDetector.cc)按 Bitmap 实际 stride 读取像素，在锁内复制为 OpenCV 所有的图像后解锁预测。只接受 ARGB8888；Native 失败明确报告，不能冒充零检测结果。
+- [ImageProcessingUtils](../../../app/src/main/java/cn/darrenyou/doctorcam/utils/ImageProcessingUtils.java)复用同一个 NV21 → RGBA → Bitmap 转换入口；借用 Buffer 的读取不改变调用方 position / limit，数据不足或尺寸不合法返回失败。
+- C++ Pipeline 按 Android Bitmap 的 RGBA 顺序转为模型 RGB 输入；JNI 标签索引来自当前模型，不使用跨上下文静态标签映射。
 
-帧回调当前包含同步转换与推理、逐帧对象分配及主线程绘制通知；源码没有足够证据支持缓冲池、完整背压或零拷贝优化的表述。现有测试仍是模板测试，不能覆盖图像坐标、摄像头生命周期或 JNI 内存边界。
+帧转换仍分配位图，推理仍在真实回调链路执行。本工程没有以合成测试证明零拷贝、持续帧率或完整性能优化。
 
-## Native 资源与图像合同
+## 相册与调试入口
 
-- [PaddleDetector.java](../../../app/src/main/java/cn/darrenyou/doctorcam/paddle/PaddleDetector.java)以非零上下文表示初始化成功；初始化、推理和释放串行访问。释放前清零 Java 上下文，重复释放不再次删除 Native 指针；重新初始化先释放旧上下文。
-- [PaddleDetector.cc](../../../app/src/main/cpp/PaddleDetector.cc)按 Bitmap 实际 stride 构造 Mat，在像素锁内复制为 OpenCV 所有的图像，随后解锁并预测。只接受 ARGB8888；Native 失败明确报告，不能伪装成没有检测框。
-- Pipeline 按 Android Bitmap 的 RGBA 顺序转换到模型 RGB 输入；JNI 标签索引使用当前模型的标签，不跨上下文保留静态映射。
+[MediaRepository](../../../app/src/main/java/cn/darrenyou/doctorcam/core/media/MediaRepository.kt)在 IO 上绘制同帧检测结果并写入系统相册，返回真实 URI 或失败。Android 10 及以上用 MediaStore 的待完成状态保护未写完的图片；Android 8 / 9 的旧存储权限按实际 API 请求。保存输入为独立位图，处理完成后回收，不建立图片上传或数据库链路。
 
-绘制工具仍使用 ONNX 类别列表查找颜色，而 Paddle 标签独立维护；不能假设两套标签始终一致。模型文件与合成位图回归不提供医学准确率证据。
+[Debug Panel](../../../app/src/main/java/cn/darrenyou/doctorcam/core/ui/components/DebugPanel.kt)由应用组合根挂载在全局最高层，默认展开、可拖动和折叠，并约束到当前安全区域。[TestPage](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/test/TestPage.kt)通过真实类型安全路由进入，展示构建与设备信息，提供返回业务页面的按钮；面板在该页仍可交互。唯一 `_debug` 字面量与 Release 门禁由[开发说明](../../operations/android-app/development.md)定义。
 
-## 验证与演进边界
+## 验证边界
 
-工具链、OpenCV 装配、启动和 Native 回归命令统一见[开发与验证说明](../../operations/android-app/development.md)。模拟器没有真实 UVC 摄像头时，设备列表为空；USB 权限、拔插、切页、抓拍与持续帧推理仍需对应真机和摄像头验证。版本接线、Debug Panel 与正式发布由该文档单独说明。
+Compose instrumentation 验证无设备空态、Activity 重建、隐藏 ONNX 入口、面板触摸与 TestPage 导航；Native 回归验证库加载、NV21 色序和借用 Buffer、真实模型执行与释放。Kotlin 推理引擎另用实际 assets 验证迁移后的消费者。
 
-标准入口：[Android 工程标准](https://github.com/darren-you/darren-space/blob/master/harness/docs/workspace/standards/android-app/android-app-golden-path.md)。
+实际 USB 权限、预览、抓拍、持续 Paddle 帧推理、切页、后台和拔插仍需要真实 UVC 摄像头。模型与合成位图不提供医学效果证据。构建、安装、运行与正式发布的边界见[开发与验证说明](../../operations/android-app/development.md)。

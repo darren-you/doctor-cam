@@ -1,11 +1,3 @@
 <resources>
     <string name="app_name">DoctorCam</string>
-    <string name="action_settings">Settings</string>
-    <!-- Strings used for fragments for navigation -->
-    <string name="uvc_devices_fragment_label">UvcDevicesFragment</string>
-    <string name="uvc_preview_fragment_label">UvcPreviewFragment</string>
-    <string name="onnx_detection_fragment_label">OnnxDetectionFragment</string>
-    <string name="paddle_detection_fragment_label">PaddleDetectionFragment</string>
-
-
 </resources>
