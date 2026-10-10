@@ -5,7 +5,7 @@ PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 CHECKER="${PROJECT_ROOT}/tool/CheckReleaseDebug.java"
 
 fail() {
-  printf '[FAIL] %s\n' "$*" >&2
+  printf 'release_debug fixtures\n  result  failed\n  reason  %s\n' "$*" >&2
   exit 1
 }
 
@@ -52,4 +52,4 @@ fi
 [[ "$actual" == *'_debug = true，请改为 _debug = false 后重新构建'* ]] \
   || fail '字符串绕过必须命中真实 true 声明'
 
-printf '%s\n' '[PASS] Android Release _debug 门禁 fixture'
+printf 'release_debug fixtures\n  cases   9\n  result  passed\n'

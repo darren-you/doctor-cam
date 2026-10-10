@@ -8,7 +8,7 @@ DoctorCam 使用 Kotlin、Compose、Material 3、类型安全 Navigation Compose
 
 [设备列表页](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/devices/DevicesPage.kt)通过 ViewModel 收集实际 USB 视频设备。轻点进入普通预览，长按进入 Paddle 检测。导航携带设备 ID、VID、PID 与检测模式；相机权限缺失时由 Activity Result API 请求，授权后再次核对设备是否仍存在。
 
-[相机页](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/camera/CameraPage.kt)通过 `AndroidView` 挂载 TextureView；UI 拥有并释放 Surface，相机控制器只借用。页面按真实帧比例居中显示预览，Compose Canvas 根据检测结果的原图尺寸缩放绘制框和标签。没有完整帧或正在保存时，抓拍按钮不可用。
+[相机页](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/camera/CameraPage.kt)通过 `AndroidView` 挂载 TextureView。UI 创建 Surface 后将所有权移交相机控制器；控制器在设备线程停止预览并释放 Surface，再回调 UI 释放所属 SurfaceTexture。`onSurfaceTextureDestroyed` 返回 `false`，避免框架提前释放仍被 Native 使用的纹理；迟到的旧视图回调按预期 Surface 对象隔离。页面按真实帧比例居中显示预览，Compose Canvas 根据检测结果的原图尺寸缩放绘制框和标签。没有完整帧或正在保存时，抓拍按钮不可用。
 
 页面在 `ON_RESUME` 打开所选设备，在 `ON_PAUSE` 和离开组合时关闭会话；[CameraViewModel](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/camera/CameraViewModel.kt)销毁时释放控制器线程。保存期间通过独立位图保留同一帧的画面与检测结果，避免下一帧替换保存输入。
 
@@ -33,6 +33,8 @@ DoctorCam 使用 Kotlin、Compose、Material 3、类型安全 Navigation Compose
 
 Paddle 使用 `paddle/model.nb`、`paddle/doctor_label_list.txt` 和 `initDefault` 的既有输入尺寸、均值、方差、线程数、功耗模式与阈值。ONNX 使用 `onnx/best_320x320.onnx` 及自身类别顺序，两套标签不混用。重构没有替换模型或声称识别准确率改善。
 
+每个 Paddle 引擎使用独立的临时模型目录，构造失败或关闭时清理；ONNX 引擎只拥有自身 Session，进程共享的 OrtEnvironment 不由单个引擎释放。两种引擎都支持重复关闭，关闭后拒绝继续推理；有效检测框约束在原图边界内。
+
 ## Native 图像与资源合同
 
 - [PaddleDetector.java](../../../app/src/main/java/cn/darrenyou/doctorcam/paddle/PaddleDetector.java)以非零上下文表示初始化成功；初始化、推理和释放同步访问。释放前清零 Java 上下文，重复释放不再次删除 Native 指针；重新初始化先释放旧上下文。
@@ -44,12 +46,12 @@ Paddle 使用 `paddle/model.nb`、`paddle/doctor_label_list.txt` 和 `initDefaul
 
 ## 相册与调试入口
 
-[MediaRepository](../../../app/src/main/java/cn/darrenyou/doctorcam/core/media/MediaRepository.kt)在 IO 上绘制同帧检测结果并写入系统相册，返回真实 URI 或失败。Android 10 及以上用 MediaStore 的待完成状态保护未写完的图片；Android 8 / 9 的旧存储权限按实际 API 请求。保存输入为独立位图，处理完成后回收，不建立图片上传或数据库链路。
+[MediaRepository](../../../app/src/main/java/cn/darrenyou/doctorcam/core/media/MediaRepository.kt)在 IO 上绘制同帧检测结果，以质量 100 的 JPEG 写入系统 Pictures 相册，返回真实 URI 或失败。Android 10 及以上用 MediaStore 的待完成状态保护未写完的图片；Android 8 / 9 的旧存储权限按实际 API 请求。编码后、提交前检查协程取消，尚未提交的 MediaStore 条目或文件会清理；提交成功后的取消属于已完成保存边界。独立输入位图在成功、失败或取消时都回收，不建立图片上传或数据库链路。
 
 [Debug Panel](../../../app/src/main/java/cn/darrenyou/doctorcam/core/ui/components/DebugPanel.kt)由应用组合根挂载在全局最高层，默认展开、可拖动和折叠，并约束到当前安全区域。[TestPage](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/test/TestPage.kt)通过真实类型安全路由进入，展示构建与设备信息，提供返回业务页面的按钮；面板在该页仍可交互。唯一 `_debug` 字面量与 Release 门禁由[开发说明](../../operations/android-app/development.md)定义。
 
 ## 验证边界
 
-Compose instrumentation 验证无设备空态、Activity 重建、隐藏 ONNX 入口、面板触摸与 TestPage 导航；Native 回归验证库加载、NV21 色序和借用 Buffer、真实模型执行与释放。Kotlin 推理引擎另用实际 assets 验证迁移后的消费者。
+Compose instrumentation 验证无设备空态、Activity 重建、隐藏 ONNX 入口、面板触摸、真实横屏安全区与 TestPage 导航，并在结束前恢复 Activity 原方向请求；Native 回归验证库加载、NV21 色序和借用 Buffer、真实模型执行与释放。Kotlin 推理引擎另用实际 assets 验证迁移后的消费者。相册回归实际写入并读回 JPEG，只删除本次生成的 URI，不把独立存储回归当作 UVC 抓拍验收。
 
 实际 USB 权限、预览、抓拍、持续 Paddle 帧推理、切页、后台和拔插仍需要真实 UVC 摄像头。模型与合成位图不提供医学效果证据。构建、安装、运行与正式发布的边界见[开发与验证说明](../../operations/android-app/development.md)。

@@ -26,7 +26,7 @@ import kotlinx.coroutines.withContext
 
 @Singleton
 class MediaRepository @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
 ) {
     /** 消费控制器捕获的独立帧；保存成功或失败都回收位图，返回结果由 ViewModel 呈现。 */
     suspend fun save(frame: CapturedFrame): Result<Uri> {
@@ -38,9 +38,9 @@ class MediaRepository @Inject constructor(
                     val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.ROOT).format(Date())
                     val fileName = "doctor-cam-$timestamp.jpg"
                     val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        saveWithMediaStore(frame.bitmap, fileName)
+                        saveWithMediaStore(frame.bitmap, fileName) { coroutineContext.ensureActive() }
                     } else {
-                        saveLegacy(frame.bitmap, fileName)
+                        saveLegacy(frame.bitmap, fileName) { coroutineContext.ensureActive() }
                     }
                     Result.success(uri)
                 } catch (error: CancellationException) {
@@ -84,7 +84,8 @@ class MediaRepository @Inject constructor(
         }
     }
 
-    private fun saveWithMediaStore(bitmap: Bitmap, fileName: String): Uri {
+    private fun saveWithMediaStore(bitmap: Bitmap, fileName: String, checkCancellation: () -> Unit): Uri {
+        checkCancellation()
         val resolver = context.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
@@ -100,6 +101,7 @@ class MediaRepository @Inject constructor(
             stream.use {
                 if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)) throw IOException("JPEG 编码失败")
             }
+            checkCancellation()
             val finished = ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }
             if (resolver.update(uri, finished, null, null) != 1) throw IOException("无法完成相册图片保存")
             committed = true
@@ -109,7 +111,8 @@ class MediaRepository @Inject constructor(
         }
     }
 
-    private fun saveLegacy(bitmap: Bitmap, fileName: String): Uri {
+    private fun saveLegacy(bitmap: Bitmap, fileName: String, checkCancellation: () -> Unit): Uri {
+        checkCancellation()
         val directory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
         if (!directory.isDirectory && !directory.mkdirs()) throw IOException("无法创建相册目录")
         val file = File(directory, fileName)
@@ -118,6 +121,7 @@ class MediaRepository @Inject constructor(
             file.outputStream().use {
                 if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)) throw IOException("JPEG 编码失败")
             }
+            checkCancellation()
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DATA, file.absolutePath)
                 put(MediaStore.Images.Media.DISPLAY_NAME, fileName)

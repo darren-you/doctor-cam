@@ -33,7 +33,7 @@ import kotlinx.coroutines.withContext
 
 /** 每个预览 ViewModel 独占一份控制器；所有设备资源操作在同一 Looper 上串行执行。 */
 class UsbCameraController @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val inferenceFactory: InferenceEngineFactory,
 ) {
     private val workerThread = HandlerThread("doctor-cam-camera").apply { start() }
@@ -45,6 +45,7 @@ class UsbCameraController @Inject constructor(
 
     private var monitor: USBMonitor? = null
     private var camera: UVCCamera? = null
+    private var cameraSessionId: Long? = null
     private var controlBlock: USBMonitor.UsbControlBlock? = null
     private var inference: InferenceEngine? = null
     private var surface: Surface? = null
@@ -63,8 +64,8 @@ class UsbCameraController @Inject constructor(
         val selection = DeviceSelection(deviceId, vendorId, productId)
         worker.post {
             if (!isCurrent(id)) return@post
-            closeSession()?.let {
-                publish(id) { CameraState(connection = CameraConnection.ERROR, error = it.message) }
+            closeSession()?.let { cleanupError ->
+                publish(id) { CameraState(connection = CameraConnection.ERROR, error = cleanupError.message) }
                 return@post
             }
             if (permissionSelection != selection) {
@@ -97,34 +98,92 @@ class UsbCameraController @Inject constructor(
         }
     }
 
-    /** Surface 由 UI 持有；控制器只借用，不释放 TextureView 创建的 Surface。 */
+    /** 消费非空 Surface 的所有权；同一个对象的尺寸更新不会停止预览或释放对象。 */
     fun setSurface(surface: Surface?, width: Int = 0, height: Int = 0) {
-        if (disposed) return
-        if (surface == null) synchronized(frameLock) { acceptingFrames = false }
-        worker.post {
-            if (disposed) return@post
-            if (this.surface === surface && acceptingFrames) return@post
+        if (surface == null) {
+            clearSurface()
+            return
+        }
+        if (disposed) {
+            surface.release()
+            return
+        }
+        val posted = worker.post {
+            if (disposed) {
+                surface.release()
+                return@post
+            }
             val id = sessionId.get()
+            surfaceWidth = width
+            surfaceHeight = height
+            if (this.surface === surface) {
+                if (!acceptingFrames && camera != null) {
+                    try {
+                        startPreview(id)
+                    } catch (error: Exception) {
+                        fail(id, error)
+                    } catch (error: LinkageError) {
+                        fail(id, error)
+                    }
+                }
+                return@post
+            }
             try {
-                if (acceptingFrames) {
+                if (this.surface != null) {
                     synchronized(frameLock) { acceptingFrames = false }
                     camera?.stopPreview()
                 }
-                this.surface = surface
-                surfaceWidth = width
-                surfaceHeight = height
-                if (surface == null) {
-                    camera?.stopPreview()
-                    publish(id) { it.copy(hasFrame = false, detections = emptyList()) }
-                } else if (camera != null) {
-                    startPreview(id)
-                }
+            } catch (error: Exception) {
+                fail(id, error)
+            } catch (error: LinkageError) {
+                fail(id, error)
+            } finally {
+                releaseOwnedSurface()
+            }
+            this.surface = surface
+            discardFrame()
+            publish(id) { it.copy(hasFrame = false, detections = emptyList()) }
+            if (disposed) {
+                releaseOwnedSurface()
+                return@post
+            }
+            try {
+                startPreview(id)
             } catch (error: Exception) {
                 fail(id, error)
             } catch (error: LinkageError) {
                 fail(id, error)
             }
         }
+        if (!posted) surface.release()
+    }
+
+    /** 先在设备线程停止预览并释放 Surface，再通知 UI 释放所属 SurfaceTexture。 */
+    fun clearSurface(expectedSurface: Surface? = null, onReleased: () -> Unit = {}) {
+        if (expectedSurface == null) synchronized(frameLock) { acceptingFrames = false }
+        val posted = worker.post {
+            if (expectedSurface != null && surface !== expectedSurface) {
+                // 替换已释放旧 Surface；迟到的旧 TextureView 回调只收尾它自己的 Texture。
+                notifySurfaceReleased(onReleased)
+                return@post
+            }
+            synchronized(frameLock) { acceptingFrames = false }
+            val id = sessionId.get()
+            try {
+                camera?.stopPreview()
+            } catch (error: Exception) {
+                fail(id, error)
+            } catch (error: LinkageError) {
+                fail(id, error)
+            } finally {
+                releaseOwnedSurface()
+                discardFrame()
+                publish(id) { it.copy(hasFrame = false, detections = emptyList()) }
+                notifySurfaceReleased(onReleased)
+            }
+        }
+        // dispose 会先释放 Surface 再退出 Looper；拒绝入队时资源已不再被借用。
+        if (!posted) notifySurfaceReleased(onReleased)
     }
 
     /** 返回独立位图，避免后台保存期间被下一帧替换或回收。 */
@@ -168,7 +227,7 @@ class UsbCameraController @Inject constructor(
         nextSession()
         worker.post {
             closeSession()
-            surface = null
+            releaseOwnedSurface()
             workerThread.quitSafely()
         }
     }
@@ -202,6 +261,7 @@ class UsbCameraController @Inject constructor(
                             return@post
                         }
                         camera = UVCCamera()
+                        cameraSessionId = id
                         checkNotNull(camera).open(block)
                         selectPreviewSize(id)
                         startPreview(id)
@@ -262,7 +322,7 @@ class UsbCameraController @Inject constructor(
     private fun startPreview(id: Long) {
         val currentCamera = camera ?: return
         val currentSurface = surface ?: return
-        if (!isCurrent(id) || !currentSurface.isValid) return
+        if (!isCurrent(id) || cameraSessionId != id || !currentSurface.isValid) return
         currentCamera.setFrameCallback(frameCallback(id, inference), UVCCamera.PIXEL_FORMAT_NV21)
         currentCamera.setPreviewDisplay(currentSurface)
         synchronized(frameLock) {
@@ -310,6 +370,7 @@ class UsbCameraController @Inject constructor(
         synchronized(frameLock) { acceptingFrames = false }
         val oldCamera = camera
         camera = null
+        cameraSessionId = null
         val oldControlBlock = controlBlock
         controlBlock = null
         val oldMonitor = monitor
@@ -333,11 +394,35 @@ class UsbCameraController @Inject constructor(
         release { oldControlBlock?.close() }
         release { oldMonitor?.destroy() }
         release { oldInference?.close() }
-        synchronized(frameLock) {
-            lastFrame?.bitmap?.recycle()
-            lastFrame = null
-        }
+        discardFrame()
         return failure
+    }
+
+    private fun discardFrame() = synchronized(frameLock) {
+        lastFrame?.bitmap?.recycle()
+        lastFrame = null
+    }
+
+    private fun releaseOwnedSurface() {
+        val oldSurface = surface
+        surface = null
+        try {
+            oldSurface?.release()
+        } catch (error: Exception) {
+            Log.e("UsbCameraController", "预览 Surface 释放失败", error)
+        } catch (error: LinkageError) {
+            Log.e("UsbCameraController", "预览 Surface Native 释放失败", error)
+        }
+    }
+
+    private fun notifySurfaceReleased(onReleased: () -> Unit) {
+        try {
+            onReleased()
+        } catch (error: Exception) {
+            Log.e("UsbCameraController", "预览 SurfaceTexture 释放回调失败", error)
+        } catch (error: LinkageError) {
+            Log.e("UsbCameraController", "预览 SurfaceTexture Native 释放回调失败", error)
+        }
     }
 
     private fun nextSession(): Long = synchronized(frameLock) {

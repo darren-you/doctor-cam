@@ -1,5 +1,6 @@
 package cn.darrenyou.doctorcam
 
+import android.content.pm.ActivityInfo
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertDoesNotExist
@@ -15,6 +16,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -66,6 +69,26 @@ class DoctorCamUiInstrumentedTest {
 
     @Test
     fun debugPanelDragsCollapsesAndExpandsWithoutOpeningDuringDrag() {
+        val originalOrientation = composeRule.activity.requestedOrientation
+        val originalWindow = composeRule.onNodeWithTag("doctorcam_devices_screen")
+            .fetchSemanticsNode().boundsInRoot
+        assertTrue("本用例需要真实竖屏起点以验证横屏窗口变化", originalWindow.height > originalWindow.width)
+        try {
+            exerciseDebugPanelGesturesAndRotation()
+        } finally {
+            composeRule.activityRule.scenario.onActivity {
+                it.requestedOrientation = originalOrientation
+            }
+            composeRule.waitUntil(timeoutMillis = 10_000) {
+                val screen = composeRule.onAllNodesWithTag("doctorcam_devices_screen")
+                    .fetchSemanticsNodes().firstOrNull()?.boundsInRoot
+                screen != null && screen.height > screen.width
+            }
+            composeRule.waitForIdle()
+        }
+    }
+
+    private fun exerciseDebugPanelGesturesAndRotation() {
         assertDeviceList()
         val expandedBefore = composeRule.onNodeWithTag("debug_panel_expanded")
             .fetchSemanticsNode().boundsInRoot
@@ -93,6 +116,27 @@ class DoctorCamUiInstrumentedTest {
         composeRule.onNodeWithTag("debug_panel_expanded").assertIsDisplayed()
         composeRule.onNodeWithTag("debug_panel_collapsed").assertDoesNotExist()
         assertDeviceList()
+
+        val panelBeforeRotation = composeRule.onNodeWithTag("debug_panel_expanded")
+            .fetchSemanticsNode().boundsInRoot
+        composeRule.activityRule.scenario.onActivity {
+            it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            val screen = composeRule.onAllNodesWithTag("doctorcam_devices_screen")
+                .fetchSemanticsNodes().firstOrNull()?.boundsInRoot
+            screen != null && screen.width > screen.height
+        }
+        composeRule.waitForIdle()
+        val panelAfterRotation = composeRule.onNodeWithTag("debug_panel_expanded")
+            .assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertTrue("真实横屏不能裁切面板宽度", panelAfterRotation.width >= panelBeforeRotation.width - 1f)
+        assertTrue("真实横屏不能裁切面板高度", panelAfterRotation.height >= panelBeforeRotation.height - 1f)
+        assertPanelInsideSafeArea("debug_panel_expanded")
+        composeRule.onNodeWithContentDescription("折叠调试面板").performClick()
+        assertPanelInsideSafeArea("debug_panel_collapsed")
+        composeRule.onNodeWithContentDescription("展开调试面板").performClick()
+        assertPanelInsideSafeArea("debug_panel_expanded")
     }
 
     private fun assertDeviceList() {
@@ -113,5 +157,21 @@ class DoctorCamUiInstrumentedTest {
                     hasContentDescription("ONNX", substring = true, ignoreCase = true)
                 ),
         ).assertCountEquals(0)
+    }
+
+    private fun assertPanelInsideSafeArea(tag: String) {
+        composeRule.waitForIdle()
+        val screen = composeRule.onNodeWithTag("doctorcam_devices_screen")
+            .fetchSemanticsNode().boundsInRoot
+        val panel = composeRule.onNodeWithTag(tag).assertIsDisplayed()
+            .fetchSemanticsNode().boundsInRoot
+        val insets = composeRule.runOnIdle {
+            requireNotNull(ViewCompat.getRootWindowInsets(composeRule.activity.window.decorView))
+                .getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+        }
+        assertTrue("面板左侧必须在实际窗口安全区内", panel.left >= screen.left + insets.left - 1f)
+        assertTrue("面板顶部必须在实际窗口安全区内", panel.top >= screen.top + insets.top - 1f)
+        assertTrue("面板右侧必须在实际窗口安全区内", panel.right <= screen.right - insets.right + 1f)
+        assertTrue("面板底部必须在实际窗口安全区内", panel.bottom <= screen.bottom - insets.bottom + 1f)
     }
 }

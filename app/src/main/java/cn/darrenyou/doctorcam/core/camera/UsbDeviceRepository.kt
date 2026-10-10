@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.stateIn
 
 @Singleton
 class UsbDeviceRepository @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
 ) {
     private val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

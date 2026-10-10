@@ -42,12 +42,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -132,7 +133,10 @@ private fun connectionText(connection: CameraConnection): String = when (connect
     CameraConnection.ERROR -> "摄像头初始化失败"
 }
 
-private class PreviewSurfaceOwner { var surface: Surface? = null }
+private class PreviewSurfaceOwner {
+    var surface: Surface? = null
+    var texture: SurfaceTexture? = null
+}
 
 @Composable
 private fun CameraTexture(viewModel: CameraViewModel, modifier: Modifier) {
@@ -145,26 +149,33 @@ private fun CameraTexture(viewModel: CameraViewModel, modifier: Modifier) {
                     override fun onSurfaceTextureAvailable(texture: SurfaceTexture, width: Int, height: Int) {
                         val surface = Surface(texture)
                         owner.surface = surface
+                        owner.texture = texture
                         viewModel.controller.setSurface(surface, width, height)
                     }
                     override fun onSurfaceTextureSizeChanged(texture: SurfaceTexture, width: Int, height: Int) {
                         viewModel.controller.setSurface(owner.surface, width, height)
                     }
                     override fun onSurfaceTextureDestroyed(texture: SurfaceTexture): Boolean {
-                        viewModel.controller.setSurface(null)
-                        owner.surface?.release()
-                        owner.surface = null
-                        return true
+                        if (owner.texture === texture) {
+                            val surface = owner.surface
+                            owner.surface = null
+                            owner.texture = null
+                            viewModel.controller.clearSurface(surface) { texture.release() }
+                        }
+                        // 停止 Native 预览后由控制器回调释放 Texture，框架不提前回收。
+                        return false
                     }
                     override fun onSurfaceTextureUpdated(texture: SurfaceTexture) = Unit
                 }
             }
         },
-        onRelease = { view ->
-            view.surfaceTextureListener = null
-            viewModel.controller.setSurface(null)
-            owner.surface?.release()
+        onRelease = { _ ->
+            val texture = owner.texture
+            val surface = owner.surface
             owner.surface = null
+            owner.texture = null
+            if (texture != null) viewModel.controller.clearSurface(surface) { texture.release() }
+            // 保留 destroyed 回调的 false 返回值，避免框架与控制器竞争释放。
         },
     )
 }
@@ -172,6 +183,7 @@ private fun CameraTexture(viewModel: CameraViewModel, modifier: Modifier) {
 @Composable
 private fun DetectionOverlay(detections: List<Detection>, modifier: Modifier) {
     val paint = remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.RED; textSize = 32f } }
+    val colors = listOf(Color.Red, Color.Green, Color.Blue, Color.Yellow, Color.Magenta)
     Canvas(modifier) {
         for (detection in detections) {
             if (detection.sourceWidth <= 0 || detection.sourceHeight <= 0) continue
@@ -179,9 +191,11 @@ private fun DetectionOverlay(detections: List<Detection>, modifier: Modifier) {
             val sy = size.height / detection.sourceHeight
             val left = detection.left * sx
             val top = detection.top * sy
-            drawRect(Color.Red, Offset(left, top), Size((detection.right - detection.left) * sx, (detection.bottom - detection.top) * sy), style = Stroke(3.dp.toPx()))
+            val color = colors[detection.classId.coerceAtLeast(0) % colors.size]
+            paint.color = color.toArgb() // drawIntoCanvas 使用相同类别颜色。
+            drawRect(color, Offset(left, top), Size((detection.right - detection.left) * sx, (detection.bottom - detection.top) * sy), style = Stroke(3.dp.toPx()))
             drawIntoCanvas { canvas ->
-                canvas.nativeCanvas.drawText("${detection.className} ${String.format(Locale.ROOT, "%.0f%%", detection.confidence * 100)}", left, (top - 8).coerceAtLeast(paint.textSize), paint)
+                canvas.nativeCanvas.drawText("${detection.className} ${String.format(Locale.ROOT, "%.2f", detection.confidence)}", left, (top - 8).coerceAtLeast(paint.textSize), paint)
             }
         }
     }
