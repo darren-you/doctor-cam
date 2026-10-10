@@ -1,0 +1,45 @@
+schema_version: 5
+name: doctor-cam
+workspace_area: work-personal
+archetype: product-single-surface
+lifecycle: incubating
+owner: darren-you
+governance_tier: light
+domains:
+  - android-app
+domain_roots:
+  android-app:
+    - .
+source_derivations: []
+delivery_surfaces:
+  - android-app
+depends_on: []
+default_workflows:
+  - release-android-app
+doc_status:
+  architecture: present
+  api: not-applicable
+  release: missing
+github:
+  repo: darren-you/doctor-cam
+  about: 原生 Android USB UVC 摄像头预览与端侧目标检测实验项目，结合 Java、JNI、OpenCV、ONNX Runtime 和 Paddle Lite
+  topics:
+    - darren-space
+    - product-single-surface
+    - android-app
+    - java
+    - jni
+    - uvc
+    - opencv
+    - onnxruntime
+    - paddle-lite
+    - computer-vision
+entrypoints:
+  - README.md
+  - AGENTS.md
+  - app/README.md
+  - settings.gradle
+  - app/build.gradle
+  - docs/README.md
+  - docs/design/android-app/architecture.md
+  - docs/operations/android-app/development.md
