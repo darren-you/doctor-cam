@@ -18,6 +18,7 @@ import cn.darrenyou.doctorcam.utils.ImageProcessingUtils
 import com.serenegiant.usb.IFrameCallback
 import com.serenegiant.usb.USBMonitor
 import com.serenegiant.usb.UVCCamera
+import com.serenegiant.usb.UVCParam
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicLong
@@ -78,7 +79,7 @@ class UsbCameraController @Inject constructor(
                     PackageManager.PERMISSION_GRANTED) { "UVC 摄像头需要相机权限" }
                 val device = usbManager.deviceList.values.firstOrNull(selection::matches)
                     ?: throw IOException("所选摄像头已断开")
-                val currentMonitor = USBMonitor(context, listener(id, selection, mode))
+                val currentMonitor = USBMonitor(context, listener(id, selection, mode), worker)
                 monitor = currentMonitor
                 currentMonitor.register()
                 if (!permissionRequested || currentMonitor.hasPermission(device)) {
@@ -236,7 +237,7 @@ class UsbCameraController @Inject constructor(
         object : USBMonitor.OnDeviceConnectListener {
             override fun onAttach(device: UsbDevice?) = Unit
 
-            override fun onDettach(device: UsbDevice?) {
+            override fun onDetach(device: UsbDevice?) {
                 if (device != null && selection.matches(device)) worker.post {
                     if (isCurrent(id)) {
                         closeSession()
@@ -248,7 +249,7 @@ class UsbCameraController @Inject constructor(
                 }
             }
 
-            override fun onConnect(device: UsbDevice?, block: USBMonitor.UsbControlBlock?, createNew: Boolean) {
+            override fun onDeviceOpen(device: UsbDevice?, block: USBMonitor.UsbControlBlock?, createNew: Boolean) {
                 if (device == null || block == null || !selection.matches(device)) return
                 worker.post {
                     if (!isCurrent(id) || camera != null) return@post
@@ -260,9 +261,13 @@ class UsbCameraController @Inject constructor(
                             closeSession()
                             return@post
                         }
-                        camera = UVCCamera()
+                        camera = UVCCamera(UVCParam())
                         cameraSessionId = id
-                        checkNotNull(camera).open(block)
+                        val currentCamera = checkNotNull(camera)
+                        val result = currentCamera.open(block)
+                        if (result != 0 || !currentCamera.isOpened) {
+                            throw IOException("无法打开 UVC 摄像头，错误码：$result")
+                        }
                         selectPreviewSize(id)
                         startPreview(id)
                     } catch (error: Exception) {
@@ -273,10 +278,11 @@ class UsbCameraController @Inject constructor(
                 }
             }
 
-            override fun onDisconnect(device: UsbDevice?, block: USBMonitor.UsbControlBlock?) {
+            override fun onDeviceClose(device: UsbDevice?, block: USBMonitor.UsbControlBlock?) {
                 worker.post {
                     // UVC 自身 close 会同步关闭克隆的 control block；旧回调不能关闭新连接。
-                    if (block != null && isCurrent(id) && camera?.usbControlBlock === block) {
+                    if (block != null && isCurrent(id) &&
+                        (controlBlock === block || camera?.usbControlBlock === block)) {
                         closeSession()
                         publish(id) { CameraState(
                             connection = CameraConnection.DISCONNECTED,
@@ -287,10 +293,18 @@ class UsbCameraController @Inject constructor(
             }
 
             override fun onCancel(device: UsbDevice?) {
+                if (device == null || !selection.matches(device)) return
                 worker.post {
                     publish(id) {
                         it.copy(connection = CameraConnection.PERMISSION_DENIED, error = "未获得 USB 设备权限")
                     }
+                }
+            }
+
+            override fun onError(device: UsbDevice?, error: USBMonitor.USBException?) {
+                if (device == null || !selection.matches(device)) return
+                worker.post {
+                    fail(id, error ?: IOException("无法打开所选 USB 设备"))
                 }
             }
         }
@@ -300,15 +314,16 @@ class UsbCameraController @Inject constructor(
         val targetRatio = if (surfaceWidth > 0 && surfaceHeight > 0) {
             surfaceWidth.toFloat() / surfaceHeight
         } else 16f / 9f
-        val formats = listOf(UVCCamera.FRAME_FORMAT_MJPEG to 6, UVCCamera.FRAME_FORMAT_YUYV to 4)
-        for ((format, descriptorType) in formats) {
-            val candidates = UVCCamera.getSupportedSize(descriptorType, currentCamera.supportedSize)
-                .filter { it.width > 0 && it.height > 0 && it.width % 2 == 0 && it.height % 2 == 0 }
+        val frameTypes = listOf(UVCCamera.UVC_VS_FRAME_MJPEG, UVCCamera.UVC_VS_FRAME_UNCOMPRESSED)
+        for (frameType in frameTypes) {
+            val candidates = currentCamera.supportedSizeList
+                .filter { it.type == frameType && it.fps > 0 &&
+                    it.width > 0 && it.height > 0 && it.width % 2 == 0 && it.height % 2 == 0 }
                 .sortedWith(compareBy<com.serenegiant.usb.Size> { abs(it.width.toFloat() / it.height - targetRatio) }
                     .thenBy { abs(it.width.toLong() * it.height - 1280L * 720) })
             for (size in candidates) {
                 try {
-                    currentCamera.setPreviewSize(size.width, size.height, format)
+                    currentCamera.setPreviewSize(size)
                     publish(id) { it.copy(width = size.width, height = size.height) }
                     return
                 } catch (_: IllegalArgumentException) {

@@ -14,7 +14,7 @@
 | Native | NDK 30.0.16248370、CMake 4.1.2、C++17、arm64-v8a |
 | OpenCV | org.opencv:opencv:5.0.0.1，官方 Java / Native / Prefab；运行 API 版本 5.0.0 |
 | Paddle Lite | 官方最新 v2.14-rc with_extra；固定制品 URL 与整包 SHA-256，构建时仅准备头文件和 bundled 静态库 |
-| UVC / ONNX Runtime | org.uvccamera:lib:0.0.13 / onnxruntime-android:1.31.0 |
+| UVC / ONNX Runtime | com.herohan:UVCAndroid:1.0.13 / onnxruntime-android:1.31.0 |
 | 安装身份 | `cn.darrenyou.doctorcam`，Debug 不追加身份后缀 |
 | 本地版本 | 工程根 `release.json`：1.0.0；Core 本地验证编号 1 |
 | 发布装配 | 仓内固定 `fast-deploy-core`；正式 Job、配置与签名渠道尚未接入 |
@@ -23,7 +23,7 @@
 
 母版当前的 Hilt 2.57.2 在本仓真实编译时无法读取 Kotlin 2.3 元数据，因此 DoctorCam 固定为 Hilt 2.58，并使用当前 `androidx.hilt.lifecycle.viewmodel.compose` 入口。2.58 的编译器消费支持新元数据的官方依赖，未忽略校验；[官方 Release](https://github.com/google/dagger/releases/tag/dagger-2.58)保留 AGP 8 装配，未引入强制 AGP 9 升级。完整 Hilt 代码生成、聚合 Java 编译，以及 Debug 主包与 instrumentation 包构建已通过。
 
-旧仓内 SDK、Java JAR / JNI、静态模块、非目标 ABI 和旧 `app/release` 输出已删除。OpenCV 使用官方最新 5.0.0.1 修复包，Paddle Lite 使用官方最新 v2.14-rc with_extra，ONNX Runtime 使用 1.31.0；UVC 发布方当前最新仍为 0.0.13。Native 工具链采用 NDK 30 / CMake 4.1.2，Paddle 使用同版官方 bundled 静态库链接到本仓 JNI。Android 平台与应用版本合同仍按模板保持 compile / target 36、min 26。
+旧仓内 SDK、Java JAR / JNI、静态模块、非目标 ABI 和旧 `app/release` 输出已删除。OpenCV 使用官方最新 5.0.0.1 修复包，Paddle Lite 使用官方最新 v2.14-rc with_extra，ONNX Runtime 使用 1.31.0；UVC 改用正式 Maven 发行的 UVCAndroid 1.0.13。Native 工具链采用 NDK 30 / CMake 4.1.2，Paddle 使用同版官方 bundled 静态库链接到本仓 JNI。Android 平台与应用版本合同仍按模板保持 compile / target 36、min 26。
 
 ## 准备与构建
 
@@ -96,7 +96,7 @@ ANDROID_SERIAL=<serial> ./gradlew --no-daemon \
 
 合成图像用于验证执行、资源与图像合同，允许模型输出零检测，不提供识别准确率或真实摄像头证据。媒体回归验证独立的绘制与存储入口，不能替代真实 UVC 抓拍。JVM 检查、源码链接检查和本地 APK 构建也不能替代 Android instrumentation。
 
-真实摄像头验收应覆盖相机与 USB 权限拒绝 / 授予、预览、抓拍图片、Paddle 持续帧推理、切页、Activity 重建、后台和拔插。没有摄像头时保持这些项未验收。现有预编译 Native 依赖的设备与页大小兼容性需单独验证，不能把 ARM64 / 4 KiB 环境的成功扩展为 16 KiB 页设备结论。
+真实摄像头验收应覆盖相机与 USB 权限拒绝 / 授予、预览、抓拍图片、Paddle 持续帧推理、切页、Activity 重建、后台和拔插。没有摄像头时保持这些项未验收。16 KiB 适配同时检查最终 Native 制品、打包合同与真实页大小的 Android 回归，步骤见下文；ARM64 / 4 KiB 环境的成功不能单独证明 16 KiB 兼容。
 
 ## 版本与 Release 门禁
 
@@ -123,4 +123,50 @@ Paddle Lite 使用[官方最新 v2.14-rc Release](https://github.com/PaddlePaddl
 
 原模型与标签不变。`model.nb` 记录的导出版本为 v2.13-rc，运行库 2.14-rc 支持相同序列化格式，但版本不一致会警告；只有用包内模型实际初始化、推理和重建的 Android 回归才提供执行证据，不能替代识别准确率或模型重新导出。ONNX Runtime 1.31.0 的来源见[官方 Release](https://github.com/microsoft/onnxruntime/releases/tag/v1.31.0)。该版本 AAR 新增自动遥测 Provider 与网络权限；本产品只有端侧推理，因此 Manifest 移除它们，并在创建唯一 OrtEnvironment 前按[官方关闭合同](https://github.com/microsoft/onnxruntime/blob/v1.31.0/docs/Privacy.md)设置 `ORT_DISABLE_TELEMETRY=1`，保持离线运行。环境变量须在 Native 初始化前设置，初始化后的事件开关不能替代此顺序。
 
-OpenCV 修复包、ONNX Runtime 与本仓 NDK 30 链接的 Paddle JNI 采用 16 KiB 或更大的 ELF 段对齐；UVC 发布方的[最新 0.0.13](https://github.com/alexey-pelykh/UVCCamera/releases/tag/0.0.13)仍包含 4 KiB 对齐库。因此当前整个 APK 不具备完整 16 KiB 页适配证据，4 KiB Pixel 的成功不能扩大为 16 KiB 设备结论。页对齐检查与实际设备运行属于不同证据。
+## UVC 选型与 16 KiB 验证
+
+UVC 从 `org.uvccamera:lib:0.0.13` 切换为 [UVCAndroid 1.0.13](https://github.com/shiyinghan/UVCAndroid/releases/tag/1.0.13)，直接消费 [Maven Central 正式 AAR](https://repo.maven.apache.org/maven2/com/herohan/UVCAndroid/1.0.13/)。该版于 2026-06-10 发布，源码 tag 对应 `6018c7f20238832929cf61427427bb7828056260`，AAR SHA-256 为 `4f1295a6c6b5e8590fb7dde3c60f30a94166db45c2d07efa63c85d5da8bfff17`。选择基于正式制品和当前消费者，保持单一 Maven 装配。
+
+| 2026-10-10 核对的仓库 | 对本次升级的判断 |
+| --- | --- |
+| [alexey-pelykh/UVCCamera](https://github.com/alexey-pelykh/UVCCamera/releases/tag/0.0.13) | 原消费方的正式最新版仍为 0.0.13，其四个 ARM64 库为 4 KiB |
+| [saki4510t/UVCCamera](https://github.com/saki4510t/UVCCamera) | 原始上游代码停于 2018 年，未提供本次所需的正式升级制品 |
+| [jiangdongguo/AndroidUSBCamera](https://github.com/jiangdongguo/AndroidUSBCamera/pull/753) | 功能覆盖广，但 16 KiB PR 尚未合并，不能当作正式发行能力 |
+| [shiyinghan/UVCAndroid](https://github.com/shiyinghan/UVCAndroid) | 1.0.13 正式 AAR 的五个 ARM64 库均为 16 KiB；低层预览与帧接口满足当前需求 |
+
+应用继续直接使用 USBMonitor / UVCCamera 与 NV21 ByteBuffer 回调，不引入库的录像、录音或高层 Activity。迁移使用 `UVCParam` 构造、`onDeviceOpen` / `onDeviceClose`、`open` 返回码检查和新版 `Size` 的真实帧类型与 fps，资源仍在专属线程串行管理。合并 Manifest 移除未消费的录音、文件管理、读存储与前台服务权限，保留相机及 API 26–28 抓拍所需的写存储权限。库主许可为 Apache-2.0，内含 libusb 的 LGPL、libuvc / JPEG / libyuv 的 BSD 类许可与 RapidJSON MIT，应保留对应第三方归属。其 system `libstdc++.so` 属于 Android 基础运行库，不是仓内旧 GNU STL；JNI 不跨库传递 C++ 容器。
+
+最终 APK 包含 11 个 ARM64 库。每次 Native 依赖变更后执行实际产物门禁：
+
+```bash
+./gradlew --no-daemon -Pandroid.builder.sdkDownload=false \
+  :app:verifyDebugNativeAlignment :app:bundleDebug
+"$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 \
+  app/build/outputs/apk/debug/app-debug.apk
+java -jar <bundletool-all.jar> dump config \
+  --bundle=app/build/outputs/bundle/debug/app-debug.aab
+```
+
+[检查脚本](../../../tool/check_native_alignment.py)检查全部 ELF LOAD 段对齐、offset / address 同余、RELRO 保护页与其他可写段的隔离，以及 APK 中未压缩 SO 的真实数据偏移。完整 JSON 写入 `app/build/reports/native-alignment-debug.json`。RELRO 按 [Android linker 的真实 mprotect 语义](https://android.googlesource.com/platform/bionic/+/refs/heads/android16-release/linker/linker_phdr.cpp)向页边界取整；允许 lld 留出的隔离间隙，不能仅凭原末端余数拒绝合规 SDK。AAB 的 `uncompress_native_libraries` 必须启用且 `alignment` 为 `PAGE_ALIGNMENT_16K`。本地 Debug AAB 同样只用于验证，不进入正式分发。
+
+应用在 Manifest 声明 `android:pageSizeCompat="disabled"`，拒绝借助 Android 16 的兼容模式加载旧 4 KiB 库。按 [Android 官方页大小指导](https://developer.android.com/guide/practices/page-sizes)准备独立测试环境：
+
+```bash
+"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+  "system-images;android-36;google_apis_ps16k;arm64-v8a"
+"$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+  -n doctor-cam-api36-16k-arm64 -k "system-images;android-36;google_apis_ps16k;arm64-v8a" -d pixel_8
+"$ANDROID_HOME/emulator/emulator" -avd doctor-cam-api36-16k-arm64
+adb -s <16k-serial> shell getconf PAGE_SIZE
+```
+
+确认该新 AVD 的身份和 `PAGE_SIZE=16384` 后，仅对这个隔离测试目标关闭 backcompat 并回读；不要对现有物理 Pixel 执行系统设置变更：
+
+```bash
+adb -s <16k-serial> shell setprop bionic.linker.16kb.app_compat.enabled false
+adb -s <16k-serial> shell setprop pm.16kb.app_compat.disabled true
+adb -s <16k-serial> shell getprop bionic.linker.16kb.app_compat.enabled
+adb -s <16k-serial> shell getprop pm.16kb.app_compat.disabled
+```
+
+在真正的 16 KiB AVD 和原 4 KiB Pixel 上安装同一 Debug / instrumentation APK 并运行上述 10 条回归，检查 UVC Native 构造、OpenCV、原 Paddle / ONNX 模型、UI、相册与冷启动。模拟器没有真实 UVC 摄像头，测试通过后仍保留硬件验收边界。

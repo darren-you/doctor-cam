@@ -17,7 +17,8 @@ DoctorCam 使用 Kotlin、Compose、Material 3、类型安全 Navigation Compose
 - [UsbDeviceRepository](../../../app/src/main/java/cn/darrenyou/doctorcam/core/camera/UsbDeviceRepository.kt)只观察系统 USB 插拔事件和 UsbManager 设备表，以 StateFlow 提供视频设备列表；列表不持有 USBMonitor 或相机连接。
 - [UsbCameraController](../../../app/src/main/java/cn/darrenyou/doctorcam/core/camera/UsbCameraController.kt)由每个相机 ViewModel 独占，拥有 USBMonitor、UVCCamera、控制连接、推理引擎与最近成功帧。设备资源操作在专属 HandlerThread / Looper 串行执行。
 - USB 授权请求、连接与回调按设备 ID、VID、PID 匹配；会话标识使已关闭页面的旧异步回调不能重开相机或覆盖新会话。
-- 预览尺寸只从摄像头实际声明的偶数宽高与 MJPEG / YUYV 格式中选择；连接或推理失败进入可见错误状态。断开、暂停或销毁时关闭 Native 相机、原始控制连接、监视器、模型及缓存位图。
+- UVCAndroid 1.0.13 通过 `UVCParam` 构造，打开后核对返回码与状态；USBMonitor 的设备打开 / 关闭回调和连接身份共同约束资源生命周期。
+- 预览尺寸只从摄像头实际声明的偶数宽高与 MJPEG / YUYV 格式中选择，直接传递新版 `Size`，保留其真实帧类型和 fps；连接或推理失败进入可见错误状态。断开、暂停或销毁时关闭 Native 相机、原始控制连接、监视器、模型及缓存位图。
 - 帧回调将 NV21 转为 ARGB8888，在推理成功后把位图与检测结果作为同一批次保存。抓拍返回独立位图，媒体保存入口负责消费和回收。
 
 这些是源码中的所有权和状态合同。没有真实摄像头时，测试不能证明 USB 授权、拔插、持续预览或抓拍已经通过。
@@ -37,7 +38,7 @@ Paddle 使用 `paddle/model.nb`、`paddle/doctor_label_list.txt` 和 `initDefaul
 
 ## Native 依赖与资源合同
 
-旧 `app/OpenCV/` 与 `app/PaddleLite/` 目录已经删除。OpenCV 5.0.0.1 使用官方 Prefab `OpenCV::opencv_java5`，Paddle Lite 的制品 URL 与 SHA-256 固定在本仓 [prepare_paddle_lite.py](../../../tool/prepare_paddle_lite.py)，Gradle 只把真实消费的头文件与 bundled 静态库准备到被忽略的构建目录。C++ 使用 NDK 30 / CMake 4.1.2 / C++17。Paddle 使用同版官方 with_extra 包的 `libpaddle_api_light_bundled.a`，包含原模型的 hard_swish 扩展算子，并以 whole-archive 保留注册，Paddle 与 NDK 30 静态 OpenMP 的运行代码直接进入本仓 JNI；不打包有动态符号元数据错误的官方 shared 库。共享 STL 归属本项目 NDK 30，构建后检查实际打包库。
+旧 `app/OpenCV/` 与 `app/PaddleLite/` 目录已经删除。OpenCV 5.0.0.1 使用官方 Prefab `OpenCV::opencv_java5`，Paddle Lite 的制品 URL 与 SHA-256 固定在本仓 [prepare_paddle_lite.py](../../../tool/prepare_paddle_lite.py)，Gradle 只把真实消费的头文件与 bundled 静态库准备到被忽略的构建目录。C++ 使用 NDK 30 / CMake 4.1.2 / C++17。Paddle 使用同版官方 with_extra 包的 `libpaddle_api_light_bundled.a`，包含原模型的 hard_swish 扩展算子，并以 whole-archive 保留注册，Paddle 与 NDK 30 静态 OpenMP 的运行代码直接进入本仓 JNI；不打包有动态符号元数据错误的官方 shared 库。共享 STL 归属本项目 NDK 30，构建后检查实际打包库。UVC 单一依赖为正式 Maven UVCAndroid 1.0.13，旧四库已由 JPEG212 / libusb1.0 / uvc / yuv / UVCCamera 五库替代。最终 Native 制品通过 16 KiB ELF、RELRO 保护隔离与 ZIP 门禁；应用显式关闭页大小兼容模式，真实运行仍须按开发说明在 16 KiB Android 回归。
 
 - [PaddleDetector.java](../../../app/src/main/java/cn/darrenyou/doctorcam/paddle/PaddleDetector.java)以非零上下文表示初始化成功；初始化、推理和释放同步访问。释放前清零 Java 上下文，重复释放不再次删除 Native 指针；重新初始化先释放旧上下文。
 - [PaddleDetector.cc](../../../app/src/main/cpp/PaddleDetector.cc)按 Bitmap 实际 stride 读取像素，在锁内复制为 OpenCV 所有的图像后解锁预测。只接受 ARGB8888；Native 失败明确报告，不能冒充零检测结果。

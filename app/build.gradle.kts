@@ -58,6 +58,23 @@ tasks.matching {
     it.name == "preBuild" || it.name.startsWith("configureCMake")
 }.configureEach { dependsOn(preparePaddleLiteSdk) }
 
+val nativeAlignmentChecker = rootProject.file("tool/check_native_alignment.py")
+val debugApk = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk")
+val debugNativeAlignmentReport = layout.buildDirectory.file("reports/native-alignment-debug.json")
+val verifyDebugNativeAlignment by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "检查 Debug APK 全部 Native 库的 16 KiB ELF 与 ZIP 对齐"
+    dependsOn("assembleDebug")
+    workingDir(rootProject.projectDir)
+    commandLine(
+        "python3", nativeAlignmentChecker, debugApk.get().asFile,
+        "--report", debugNativeAlignmentReport.get().asFile,
+    )
+    inputs.file(nativeAlignmentChecker)
+    inputs.file(debugApk)
+    outputs.file(debugNativeAlignmentReport)
+}
+
 val clientVersionTool = rootProject.file("fast-deploy-core/shared/client_version.py")
 val clientRunId = providers.environmentVariable("FAST_DEPLOY_RUN_ID").orElse("").get()
 val clientSnapshotPath = providers.environmentVariable("FAST_DEPLOY_CLIENT_VERSION_SNAPSHOT_FILE").orNull

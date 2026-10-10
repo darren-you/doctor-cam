@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.serenegiant.usb.UVCCamera;
+import com.serenegiant.usb.UVCParam;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -271,6 +272,10 @@ public class NativeRuntimeInstrumentedTest {
     }
 
     private static final class NativeCamera extends UVCCamera {
+        NativeCamera() {
+            super(new UVCParam());
+        }
+
         boolean hasNativeContext() {
             return mNativePtr != 0;
         }

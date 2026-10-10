@@ -38,6 +38,6 @@ flowchart LR
 
 本项目没有业务数据库、账号或后端 API。Hilt 直接装配摄像头、推理与相册依赖，页面使用 ViewModel / StateFlow；母版的 Room 启动统计、主题设置持久化与 Platform Infra Storage 示例不进入本应用。Material 3 主题跟随系统，Android 12 及以上使用动态颜色。
 
-OpenCV 5.0.0.1 官方 AAR 同时提供 Java、Native 和 Prefab；Paddle Lite 使用最新官方 v2.14-rc with_extra bundled 静态库，由 NDK 30 链接进本仓 JNI，ONNX Runtime 使用 1.31.0。UVC 0.0.13 是其发布方当前最新版本。原模型与标签保持不变，库升级后的执行合同由真实 Android 回归验证。
+OpenCV 5.0.0.1 官方 AAR 同时提供 Java、Native 和 Prefab；Paddle Lite 使用最新官方 v2.14-rc with_extra bundled 静态库，由 NDK 30 链接进本仓 JNI，ONNX Runtime 使用 1.31.0。UVC 使用官方 Maven `com.herohan:UVCAndroid:1.0.13`，直接消费支持 16 KiB 的原生库。原模型与标签保持不变，库升级后的执行合同由真实 Android 回归验证。
 
 版本从仓根 `release.json` 经固定 Core 读取，Debug 与 Release 构建使用同一安装身份。Release 必须先将 [DoctorCamApp.kt](src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt) 中唯一 `_debug` 改为 `false` 并通过门禁；正式发布配置与签名渠道仍需单独接入。
