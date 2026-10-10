@@ -17,7 +17,7 @@
 | UVC / ONNX Runtime | com.herohan:UVCAndroid:1.0.13 / onnxruntime-android:1.31.0 |
 | 安装身份 | `cn.darrenyou.doctorcam`，Debug 不追加身份后缀 |
 | 本地版本 | 工程根 `release.json`：1.0.0；Core 本地验证编号 1 |
-| 发布装配 | 仓内固定 `fast-deploy-core`；正式 Job、配置与签名渠道尚未接入 |
+| 发布装配 | 仓内固定 `fast-deploy-core` 默认 Android 流水线；Job 为 `doctor-cam-android-app`，生产 `official / apk`，由 `mac-ci-1` 构建 |
 
 事实源为 [Wrapper](../../../gradle/wrapper/gradle-wrapper.properties)、[版本目录](../../../gradle/libs.versions.toml)、[应用 Gradle](../../../app/build.gradle.kts)、[Paddle 准备脚本](../../../tool/prepare_paddle_lite.py)、[CMake](../../../app/src/main/cpp/CMakeLists.txt)和 [release.json](../../../release.json)。[官方 AGP 兼容表](https://developer.android.com/build/releases/about-agp)要求 AGP 9.4 使用 Gradle 9.6 及以上；本仓固定正式最新版 9.8.1，不使用动态版本。
 
@@ -72,7 +72,7 @@ AGP 生成 variant 对应的 `BuildConfig`；Compose 页面不再使用 ViewBind
 
 ## 安装与启动
 
-先核对 `adb devices -l`，再显式选择本次授权的序列号；安装包保留原身份，不卸载或清空已有应用数据。选择 ARM64 真机或 ARM64 模拟器，x86 模拟器不能加载本工程的 Native 库。
+先核对 `adb devices -l`，再显式选择本次授权的序列号；安装包保留原身份，不卸载或清空已有应用数据。`install -r` 只适用于已安装包与新包签名一致的情况；Debug 与正式 PKCS12 签名不同，不能用提升编号替代签名一致性。选择 ARM64 真机或 ARM64 模拟器，x86 模拟器不能加载本工程的 Native 库。
 
 ```bash
 adb devices -l
@@ -84,7 +84,7 @@ adb -s <serial> logcat -d -b crash
 
 主界面展示设备列表。连接真实 USB UVC 摄像头后轻点预览，长按进入 Paddle 检测；选择设备时先申请相机权限，Android 8 / 9 同时申请存储权限，全部授予且所选设备仍存在后才进入预览。USB 设备权限由相机控制器的 USBMonitor 申请和消费，并按实际设备 ID、VID、PID 匹配。抓拍时不弹出存储授权对话框；Android 8 / 9 的存储权限失效时提示返回设备列表重新授权。
 
-未连接 UVC 时显示“暂无设备”，模拟器内置摄像头不等同于 USB UVC。全局 Debug Panel 默认展开；可拖动、折叠，点击 `TestPage` 进入开发检查页，再通过“返回业务页面”返回。
+未连接 UVC 时显示“暂无设备”，模拟器内置摄像头不等同于 USB UVC。开发时启用 `_debug=true`，全局 Debug Panel 默认展开；可拖动、折叠，点击 `TestPage` 进入开发检查页，再通过“返回业务页面”返回。正式源码要求 `_debug=false`，不显示这些入口。
 
 ## Android 回归
 
@@ -101,11 +101,12 @@ ANDROID_SERIAL=<serial> ./gradlew --no-daemon \
   -Pandroid.builder.sdkDownload=false :app:connectedDebugAndroidTest
 ```
 
-当前源码共 10 条 instrumentation 用例；下表列出覆盖范围，执行结果以目标设备的测试报告为准。
+Debug 共 10 条 instrumentation 用例，Release 共 8 条；其中 7 条 Native、推理与相册用例位于共享 `src/androidTest/`，各 variant 使用自己的 UI 用例。Debug UI 回归使用 `_debug=true`，Release UI 回归使用通过门禁的 `_debug=false` 源码；测试不会自动修改该开关。下表列出覆盖范围，执行结果以目标设备的测试报告为准。
 
 | 用例 | 数量 | 验证范围 |
 | --- | --- | --- |
-| [DoctorCamUiInstrumentedTest](../../../app/src/androidTest/java/cn/darrenyou/doctorcam/DoctorCamUiInstrumentedTest.kt) | 3 | 真实 Activity 的设备空态与重建、隐藏 ONNX 可点击入口、面板拖动 / 折叠 / 展开、TestPage 导航与返回、真实横屏与系统安全区；要求没有接入 UVC 且旋转用例从竖屏启动，结束前恢复原 Activity 方向请求 |
+| [DoctorCamUiInstrumentedTest](../../../app/src/androidTestDebug/java/cn/darrenyou/doctorcam/DoctorCamUiInstrumentedTest.kt) | Debug 3 | 真实 Activity 的设备空态与重建、隐藏 ONNX 可点击入口、面板拖动 / 折叠 / 展开、TestPage 导航与返回、真实横屏与系统安全区；要求没有接入 UVC 且旋转用例从竖屏启动，结束前恢复原 Activity 方向请求 |
+| [DoctorCamReleaseUiInstrumentedTest](../../../app/src/androidTestRelease/java/cn/darrenyou/doctorcam/DoctorCamReleaseUiInstrumentedTest.kt) | Release 1 | 正式 Activity 为非 debuggable，设备空态与重建、无 Debug Panel / TestPage / ONNX 可点击入口、真实横屏；要求没有接入 UVC 且从竖屏启动，结束前恢复原 Activity 方向请求 |
 | [NativeRuntimeInstrumentedTest](../../../app/src/androidTest/java/cn/darrenyou/doctorcam/NativeRuntimeInstrumentedTest.java) | 4 | OpenCV Native 运算、UVC Native 构造 / 销毁、NV21 红色色序与借用 Buffer、原 Paddle 模型推理、格式拒绝、重复释放与重初始化 |
 | [InferenceEngineInstrumentedTest](../../../app/src/androidTest/java/cn/darrenyou/doctorcam/InferenceEngineInstrumentedTest.kt) | 2 | 重构后的真实 Paddle / 隐藏 ONNX 引擎执行原 assets；输入尺寸、检测结果合同、重复关闭、关闭后拒绝与重建 |
 | [MediaRepositoryInstrumentedTest](../../../app/src/androidTest/java/cn/darrenyou/doctorcam/MediaRepositoryInstrumentedTest.kt) | 1 | API 29 及以上实际保存并读回 JPEG，检查 URI / MIME / 待完成状态、检测框色序、尺寸与输入回收；仅删除本次测试生成的 URI |
@@ -120,16 +121,49 @@ ANDROID_SERIAL=<serial> ./gradlew --no-daemon \
 
 正式构建必须读取 Panel 分配的冻结编号快照，并校验真实 variant、安装身份、ABI 和版本。缺少快照时只允许前置检查与准备，禁止产包。`prepareReleaseClientVersion` 只生成准备事实，不分配正式编号或建立正式发布任务。
 
-[DoctorCamApp.kt](../../../app/src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt)中唯一的 `_debug = true` 是开发默认值。所有 Release variant 在编译前调用同一 `verifyReleaseDebugDisabled`；编号准备也依赖该门禁。缺失、重复、非字面量或值为 `true` 时明确失败，须由维护者显式改为唯一 `false`。
+[DoctorCamApp.kt](../../../app/src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt)中唯一的 `_debug` 字面量控制调试入口：开发模式使用 `true`，正式发布源码使用 `false`。所有 Release variant 在编译前调用同一 `verifyReleaseDebugDisabled`；编号准备也依赖该门禁。缺失、重复、非字面量或值为 `true` 时明确失败，须由维护者显式改为唯一 `false`。
 
 ```bash
 bash tool/test_check_release_debug.sh
 ./gradlew --no-daemon -Pandroid.builder.sdkDownload=false :app:verifyReleaseDebugDisabled
 ```
 
-第二条在默认开发源码下应失败。门禁 fixture 验证唯一 `false` 可接受，以及 `true`、缺失、重复、可变或伪装声明等拒绝情形。Debug 构建不依赖 Release 门禁。
+第二条在 `_debug=true` 的开发源码下应失败，在唯一 `_debug=false` 时通过。门禁 fixture 验证唯一 `false` 可接受，以及 `true`、缺失、重复、可变或伪装声明等拒绝情形。Debug 构建不依赖 Release 门禁。
 
-当前没有 `deploy_config.sh`、Fast Deploy Android Job、正式签名和渠道验收。本地 APK 只用于验证，不进入正式分发；发布接入仍须按工作区 Android 与统一版本标准完成真实配置、编号、签名、制品和设备验收。
+## 正式发布
+
+[deploy_config.sh](../../../deploy_config.sh)是本仓正式配置入口。Fast Deploy Job `doctor-cam-android-app` 只接受 `prod`，默认制品为 `official / apk`，实际 variant 为 `release`、架构为 `arm64-v8a`，安装身份保持 `cn.darrenyou.doctorcam`。Job 采用 `exclusive / isolated / store`，在 `mac-ci-1` 构建，不修改 Git，也没有部署设备维度；固定 Core 的默认 Android 流水线负责准备、编号、构建、登记与校验。
+
+历史源码和旧本地 Release 输出元数据只证明曾使用 `versionCode=1`、`versionName=1.0`，不能证明正式渠道发行或既有签名身份。首次正式发布保留已知编号 `1` 的高水位，按统一版本合同离线初始化 Panel 的 Android 安装身份，再由实际活动 build stage 分配编号。当前人工版本为 `1.0.0`，正式编号以 Panel 本次冻结快照及最终 APK 回读为准，不在文档或源码预填下一编号，也不建立产品私有编号算法。
+
+签名材料的唯一事实源为 `secret-data/profiles/doctor-cam/android-app/shared.prod.env`。配置通过仓内固定 Core 的 Profile loader 读取本次冻结快照，消费以下四个字段，不允许外部文件覆盖：
+
+- `DOCTOR_CAM_ANDROID_SIGNING_KEYSTORE_BASE64`
+- `DOCTOR_CAM_ANDROID_SIGNING_PASSWORD`
+- `DOCTOR_CAM_ANDROID_SIGNING_KEY_ALIAS`
+- `DOCTOR_CAM_ANDROID_SIGNING_CERT_SHA256`
+
+PKCS12 alias 固定为 `doctor-cam`；首次正式证书的公开 SHA-256 为 `0c8472fdcf61d45a66500368da43f2c254eca5dc4bd5be4ca0334b170376fbdc`。[签名准备脚本](../../../tool/prepare_release_signing.py)在构建目录以受限文件权限物化 PKCS12，通过 `keytool` 从实际证书字节核对摘要；密码经环境变量传入，不打印签名秘密，构建产物不提交 Git。
+
+Release 编号准备与编译都依赖同一 Debug 静态门禁及签名准备。`assembleRelease` 必须等待 [最终 APK 检查](../../../tool/check_release_apk.py)与 [Native 对齐检查](../../../tool/check_native_alignment.py)通过：只有一个正式签名者、证书匹配冻结 Profile、`debuggable=false`、`testOnly=false`，全部 Native 库满足 16 KiB 合同。Core 另从最终 Manifest 核对 `versionName`、Panel 分配的整数 `versionCode`、安装身份、`client_local_validation=false` 与当前 `client_run_id`，再冻结制品摘要。
+
+发布前须将已保存的 Job 清单和固定 Core 传播到真实在线 Panel 消费者，并回读 Job；配置文件存在或本地清单校验不能证明在线任务可用。通过 Panel 触发该 Job，或在已准备控制面连接的环境使用既有入口：
+
+```bash
+bash fast-deploy-core/deploy-control/trigger_build.sh \
+  --job doctor-cam-android-app --build-env prod
+```
+
+正式 APK 构建完成后，使用同一冻结版本与签名配置生成 Release instrumentation，显式选择 Release 测试 variant：
+
+```bash
+./gradlew --no-daemon -Pandroid.builder.sdkDownload=false \
+  -PtestBuildType=release :app:assembleReleaseAndroidTest
+```
+
+将该测试 APK 与实际正式 APK 在两个授权的页大小环境配套运行 8 条回归，分别验证生产界面、原模型、Native 与相册；测试 APK 不进入正式分发。正式 APK 路径为 `app/build/outputs/apk/release/app-release.apk`，测试 APK 为 `app/build/outputs/apk/androidTest/release/app-release-androidTest.apk`。同一人工版本并不允许复用本地验证 APK；正式证书、Panel 快照、run 和最终摘要必须属于实际正式构建。
+
+首次 GitHub 发布使用 tag `v1.0.0`，在正式 APK 和对应源码提交核验后上传 APK 与源码。本次采用已授权的 GitHub 发布操作，不新增产品发布流水线或长期 GitHub 上传器。接入源码、签名材料准备、正式构建、设备运行与 GitHub Release 分别核验；阶段结果归属[工作区 Issue 72](https://github.com/darren-you/darren-space/issues/72)，不在产品文档维护任务进度副本。
 
 ## 官方 SDK 来源与升级边界
 

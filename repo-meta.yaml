@@ -19,7 +19,7 @@ default_workflows:
 doc_status:
   architecture: present
   api: not-applicable
-  release: missing
+  release: present
 github:
   repo: darren-you/doctor-cam
   about: 原生 Android USB UVC 摄像头预览与端侧目标检测实验项目，采用 Kotlin、Jetpack Compose、Hilt、JNI、OpenCV、ONNX Runtime 和 Paddle Lite
@@ -43,6 +43,7 @@ entrypoints:
   - settings.gradle.kts
   - app/build.gradle.kts
   - release.json
+  - deploy_config.sh
   - docs/README.md
   - docs/design/android-app/architecture.md
   - docs/operations/android-app/development.md

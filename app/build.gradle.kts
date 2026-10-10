@@ -16,6 +16,8 @@ val javaExecutableName = if (System.getProperty("os.name").lowercase().contains(
     "java"
 }
 val javaExecutable = file("${System.getProperty("java.home")}/bin/$javaExecutableName")
+val keytoolExecutableName = if (javaExecutableName.endsWith(".exe")) "keytool.exe" else "keytool"
+val keytoolExecutable = file("${System.getProperty("java.home")}/bin/$keytoolExecutableName")
 
 val verifyReleaseDebugDisabled = tasks.register<Exec>("verifyReleaseDebugDisabled") {
     group = "verification"
@@ -37,6 +39,23 @@ val verifyReleaseDebugFixture = tasks.register<Exec>("verifyReleaseDebugFixture"
     args(releaseDebugCheckerPath, "--source", releaseDebugFixturePath, "--display", releaseDebugFixturePath)
     inputs.file(rootProject.file(releaseDebugCheckerPath))
     inputs.file(rootProject.file(releaseDebugFixturePath))
+}
+
+val releaseSigningScript = rootProject.file("tool/prepare_release_signing.py")
+val releaseKeystore = layout.buildDirectory.file("signing/doctor-cam-release.p12")
+val releaseSigningPassword = providers.environmentVariable("DOCTOR_CAM_ANDROID_SIGNING_PASSWORD").orNull
+val releaseSigningAlias = providers.environmentVariable("DOCTOR_CAM_ANDROID_SIGNING_KEY_ALIAS").orNull
+val releaseSigningCertificate = providers.environmentVariable("DOCTOR_CAM_ANDROID_SIGNING_CERT_SHA256")
+    .orElse("").get()
+val prepareReleaseSigning = tasks.register<Exec>("prepareReleaseSigning") {
+    group = "build setup"
+    description = "从固定 Profile 准备并校验正式 PKCS12 签名"
+    dependsOn(verifyReleaseDebugDisabled)
+    commandLine("python3", releaseSigningScript, "--keytool", keytoolExecutable)
+    inputs.file(releaseSigningScript)
+    outputs.file(releaseKeystore)
+    // 每次正式构建均核对本次 Profile，不能复用上次运行物化的签名文件。
+    outputs.upToDateWhen { false }
 }
 
 val paddleLiteSdkDirectory = layout.buildDirectory.dir("native-sdk/paddle-lite")
@@ -100,7 +119,8 @@ if (clientVersionPending) {
     gradle.taskGraph.whenReady {
         require(allTasks.all {
             it.name.startsWith("prepare") && it.name.endsWith("ClientVersion") ||
-                it.name == "verifyReleaseDebugDisabled" || it.name == "dependencies"
+                it.name == "verifyReleaseDebugDisabled" || it.name == "dependencies" ||
+                it.name == "prepareReleaseSigning"
         }) {
             "正式 Android 构建必须先分配 Panel 编号快照"
         }
@@ -113,6 +133,9 @@ android {
         version = release(37) { minorApiLevel = 2 }
     }
     buildToolsVersion = "37.0.0"
+    testBuildType = providers.gradleProperty("testBuildType").orElse("debug").get().also {
+        require(it == "debug" || it == "release") { "testBuildType 只允许 debug 或 release" }
+    }
 
     defaultConfig {
         applicationId = "cn.darrenyou.doctorcam"
@@ -134,8 +157,18 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = releaseKeystore.get().asFile
+            storeType = "PKCS12"
+            storePassword = releaseSigningPassword
+            keyPassword = releaseSigningPassword
+            keyAlias = releaseSigningAlias
+        }
+    }
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -164,6 +197,46 @@ android {
         jniLibs.pickFirsts += "lib/arm64-v8a/libc++_shared.so"
     }
 }
+
+val releaseApk = layout.buildDirectory.file("outputs/apk/release/app-release.apk")
+val releaseSignatureChecker = rootProject.file("tool/check_release_apk.py")
+val releaseSignatureReport = layout.buildDirectory.file("reports/release-apk-signature.json")
+val androidSdkDirectory = androidComponents.sdkComponents.sdkDirectory.get().asFile
+val verifyReleaseSignature = tasks.register<Exec>("verifyReleaseSignature") {
+    group = "verification"
+    description = "检查最终 Release APK 的签名证书和非调试发布标志"
+    dependsOn("packageRelease")
+    commandLine(
+        "python3", releaseSignatureChecker, releaseApk.get().asFile,
+        "--apksigner", androidSdkDirectory.resolve("build-tools/37.0.0/apksigner"),
+        "--apkanalyzer", androidSdkDirectory.resolve("cmdline-tools/latest/bin/apkanalyzer"),
+        "--report", releaseSignatureReport.get().asFile,
+    )
+    inputs.file(releaseSignatureChecker)
+    inputs.file(releaseApk)
+    inputs.property("certificateSha256", releaseSigningCertificate)
+    outputs.file(releaseSignatureReport)
+}
+val releaseNativeAlignmentReport = layout.buildDirectory.file("reports/native-alignment-release.json")
+val verifyReleaseNativeAlignment = tasks.register<Exec>("verifyReleaseNativeAlignment") {
+    group = "verification"
+    description = "检查最终 Release APK 全部 Native 库的 16 KiB ELF 与 ZIP 对齐"
+    dependsOn("packageRelease")
+    commandLine(
+        "python3", nativeAlignmentChecker, releaseApk.get().asFile,
+        "--report", releaseNativeAlignmentReport.get().asFile,
+    )
+    inputs.file(nativeAlignmentChecker)
+    inputs.file(releaseApk)
+    outputs.file(releaseNativeAlignmentReport)
+}
+// 两个检查依赖真实打包任务；assemble 等待检查成功，避免反向依赖造成任务环。
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    dependsOn(verifyReleaseSignature, verifyReleaseNativeAlignment)
+}
+tasks.matching {
+    it.name == "validateSigningRelease" || it.name == "validateSigningReleaseAndroidTest"
+}.configureEach { dependsOn(prepareReleaseSigning) }
 
 kotlin {
     compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
@@ -229,7 +302,7 @@ androidComponents {
             }
             tasks.register<Exec>("prepare${name}ClientVersion") {
                 group = "verification"
-                dependsOn(verifyReleaseDebugDisabled)
+                dependsOn(verifyReleaseDebugDisabled, prepareReleaseSigning)
                 commandLine(arguments)
                 doFirst {
                     require(!output.isNullOrEmpty()) {
@@ -239,7 +312,7 @@ androidComponents {
             }
         }
         tasks.matching { it.name == "pre${name}Build" }.configureEach {
-            if (variant.buildType == "release") dependsOn(verifyReleaseDebugDisabled)
+            if (variant.buildType == "release") dependsOn(verifyReleaseDebugDisabled, prepareReleaseSigning)
             doFirst {
                 require(clientVersionMatches) {
                     "Android 实际 variant、applicationId 或 ABI 与编号快照不一致"

@@ -3,7 +3,7 @@
 ## 当前工程正文
 
 - [Android 架构与实现边界](design/android-app/architecture.md)：真实模块、帧处理、推理与存储链路。
-- [开发、验证与发布边界](operations/android-app/development.md)：工具链、独立 checkout 构建与运行命令及标准发布边界。
+- [开发、验证与发布边界](operations/android-app/development.md)：工具链、独立 checkout 构建与运行、分 variant 回归、Panel 编号和正式签名合同。
 
 项目当前没有自有网络 API，因而不建立空 API 文档或后端工程。当前工程说明以源码为准，不将静态阅读标成运行验收。
 

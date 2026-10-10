@@ -14,7 +14,7 @@ flowchart LR
     opencv[官方 OpenCV Maven / Prefab] --> camera
     cpp[src/main/cpp / 官方 Paddle Lite 构建依赖] --> inference
     assets[src/main/assets 模型 / 标签] --> inference
-    app --> apk[ARM64 本地验证 APK]
+    app --> apk[ARM64 验证 / 正式 APK]
 ```
 
 | 路径 | 职责 |
@@ -31,7 +31,8 @@ flowchart LR
 | `src/main/res/` | Android 图标、系统主题与平台资源 |
 | `build/native-sdk/paddle-lite/` | 构建时从固定官方制品准备的两个 C++ 头文件与 ARM64 bundled 静态库，不提交 Git |
 | 仓根 `gradle/libs.versions.toml`、[SDK 准备脚本](../tool/prepare_paddle_lite.py) | OpenCV / ONNX 版本及 Paddle 官方制品地址、摘要事实源 |
-| `src/test/`、`src/androidTest/` | JVM 检查、真实 Compose UI 与 Native / 推理引擎回归 |
+| `src/test/`、`src/androidTest/` | JVM 检查与 Debug / Release 共用的 7 条 Native、推理和相册回归 |
+| `src/androidTestDebug/`、`src/androidTestRelease/` | Debug 的 3 条调试交互用例与 Release 的 1 条生产界面用例 |
 | `src/testFixtures/`、仓根 `tool/` | 唯一 `_debug` 字面量的 Release 门禁与 fixture |
 
 设备轻点预览、长按 Paddle 检测；ONNX 通过内部推理接口保留，没有公开选择入口。原 Activity / Fragment、ViewBinding XML 页面与 XML 导航已由 Compose 页面和类型安全路由替代，源码职责与生命周期见[架构说明](../docs/design/android-app/architecture.md)。
@@ -40,4 +41,4 @@ flowchart LR
 
 OpenCV 5.0.0.1 官方 AAR 同时提供 Java、Native 和 Prefab；Paddle Lite 使用最新官方 v2.14-rc with_extra bundled 静态库，由 NDK 30 链接进本仓 JNI，ONNX Runtime 使用 1.31.0。UVC 使用官方 Maven `com.herohan:UVCAndroid:1.0.13`，直接消费支持 16 KiB 的原生库。原模型与标签保持不变，库升级后的执行合同由真实 Android 回归验证。
 
-版本从仓根 `release.json` 经固定 Core 读取，Debug 与 Release 构建使用同一安装身份。Release 必须先将 [DoctorCamApp.kt](src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt) 中唯一 `_debug` 改为 `false` 并通过门禁；正式发布配置与签名渠道仍需单独接入。
+版本从仓根 `release.json` 经固定 Core 读取，Debug 与 Release 构建使用同一安装身份；本地验证编号固定为 `1`，正式 `versionCode` 由 Panel 持久化分配。Release 必须先将 [DoctorCamApp.kt](src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt) 中唯一 `_debug` 改为 `false` 并通过门禁，再从固定 Profile 准备 PKCS12 签名。`assembleRelease` 等待最终 APK 签名、发布标志和 Native 16 KiB 检查成功；详细合同见[正式发布说明](../docs/operations/android-app/development.md#正式发布)。

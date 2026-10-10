@@ -51,10 +51,10 @@ Paddle 使用 `paddle/model.nb`、`paddle/doctor_label_list.txt` 和 `initDefaul
 
 [MediaRepository](../../../app/src/main/java/cn/darrenyou/doctorcam/core/media/MediaRepository.kt)在 IO 上绘制同帧检测结果，以质量 100 的 JPEG 写入系统 Pictures 相册，返回真实 URI 或失败。Android 10 及以上用 MediaStore 的待完成状态保护未写完的图片；Android 8 / 9 的存储权限在进入预览前申请，避免保存时的授权对话框暂停相机并丢失当前帧。若该权限失效，相机页提示返回设备列表重新授权，不在抓拍时弹出权限对话框。编码后、提交前检查协程取消，尚未提交的 MediaStore 条目或文件会清理；提交成功后的取消属于已完成保存边界。独立输入位图在成功、失败或取消时都回收，不建立图片上传或数据库链路。
 
-[Debug Panel](../../../app/src/main/java/cn/darrenyou/doctorcam/core/ui/components/DebugPanel.kt)由应用组合根挂载在全局最高层，默认展开、可拖动和折叠，并约束到当前安全区域。[TestPage](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/test/TestPage.kt)通过真实类型安全路由进入，展示构建与设备信息，提供返回业务页面的按钮；面板在该页仍可交互。唯一 `_debug` 字面量与 Release 门禁由[开发说明](../../operations/android-app/development.md)定义。
+[Debug Panel](../../../app/src/main/java/cn/darrenyou/doctorcam/core/ui/components/DebugPanel.kt)在开发模式由应用组合根挂载在全局最高层，默认展开、可拖动和折叠，并约束到当前安全区域。[TestPage](../../../app/src/main/java/cn/darrenyou/doctorcam/feature/test/TestPage.kt)通过真实类型安全路由进入，展示构建与设备信息，提供返回业务页面的按钮；面板在该页仍可交互。正式构建要求唯一 `_debug` 字面量为 `false`，不显示面板或 TestPage 可点击入口，门禁由[开发说明](../../operations/android-app/development.md#版本与-release-门禁)定义。
 
 ## 验证边界
 
-Compose instrumentation 验证无设备空态、Activity 重建、隐藏 ONNX 入口、面板触摸、真实横屏安全区与 TestPage 导航，并在结束前恢复 Activity 原方向请求；Native 回归验证库加载、NV21 色序和借用 Buffer、真实模型执行与释放。Kotlin 推理引擎另用实际 assets 验证迁移后的消费者。相册回归实际写入并读回 JPEG，只删除本次生成的 URI，不把独立存储回归当作 UVC 抓拍验收。
+Debug instrumentation 的 3 条 UI 用例验证无设备空态、Activity 重建、隐藏 ONNX 入口、面板触摸、真实横屏安全区与 TestPage 导航；Release 的 1 条 UI 用例验证非调试包的生产设备页、无调试入口、重建与横屏。旋转用例在结束前恢复 Activity 原方向请求。两种 variant 共用 7 条 Native、推理与相册回归：库加载、NV21 色序和借用 Buffer、原 Paddle / ONNX 模型执行与释放，以及实际写入并读回 JPEG。相册用例只删除本次生成的 URI，不把独立存储回归当作 UVC 抓拍验收。
 
 实际 USB 权限、预览、抓拍、持续 Paddle 帧推理、切页、后台和拔插仍需要真实 UVC 摄像头。模型与合成位图不提供医学效果证据。构建、安装、运行与正式发布的边界见[开发与验证说明](../../operations/android-app/development.md)。

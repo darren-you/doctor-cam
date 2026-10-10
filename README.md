@@ -8,7 +8,7 @@ DoctorCam 是个人维护的 Android USB UVC 摄像头与端侧视觉实验项�
 - 相机页按真实设备 ID、VID、PID 申请和消费 USB 权限，显示预览、检测框与连接状态，并抓拍保存到系统相册。
 - Paddle 使用包内既有模型和标签，通过 JNI 执行推理；ONNX 保留为内部推理引擎，没有公开的设备列表入口。
 - Compose 单 Activity 装配页面与 ViewModel，TextureView 承载 UVC Surface，Compose Canvas 绘制同一帧的检测结果。
-- 全局 Debug Panel 默认展开，支持拖动、折叠和进入类型安全 TestPage；Release 编译检查唯一 `_debug` 开关。
+- 开发模式的全局 Debug Panel 默认展开，支持拖动、折叠和进入类型安全 TestPage；Release 编译检查唯一 `_debug` 开关，正式界面不显示调试入口。
 
 模型文件、历史论文和合成图像回归不提供医学准确率、检测性能或真实摄像头验收证据。
 
@@ -52,4 +52,6 @@ Debug APK 位于 `app/build/outputs/apk/debug/app-debug.apk`，Android 8.0 / API
 - [Android 工程标准](https://github.com/darren-you/darren-space/blob/master/harness/docs/workspace/standards/android-app/android-app-golden-path.md)
 - [统一应用版本标准](https://github.com/darren-you/darren-space/blob/master/harness/docs/workspace/standards/client-version-golden-path.md)
 
-工作区逻辑身份为 `doctor-cam`，归属 `work-personal`。`release.json` 维护人工版本，Gradle 通过仓内固定 Core 消费本地验证输入或正式编号快照；本地 APK 标记 `client_local_validation=true`。当前尚未登记 Fast Deploy Job、发布配置、正式签名与渠道。本地构建与运行不等于正式发布或完整 Android 工程标准验收。
+工作区逻辑身份为 `doctor-cam`，归属 `work-personal`。`release.json` 是人工三段版本的唯一事实源，当前为 `1.0.0`；Gradle 通过仓内固定 Core 消费本地验证输入或 Panel 正式编号快照。本地 APK 使用验证编号 `1` 并标记 `client_local_validation=true`，不能正式分发。
+
+正式发布入口为 Fast Deploy 的 `doctor-cam-android-app`，由仓根 [deploy_config.sh](deploy_config.sh) 绑定生产 `official / apk` 渠道，在 `mac-ci-1` 构建。Release 通过同一 Debug 静态门禁、固定 Profile 的 PKCS12 签名、最终证书回读和全库 16 KiB 检查；构建不修改 Git。发布合同见[开发说明](docs/operations/android-app/development.md#正式发布)。发布配置接入与本地运行不代表正式编号、正式 APK 或 GitHub Release 已验收；运行证据与本次发布结果统一记录在[工作区 Issue 72](https://github.com/darren-you/darren-space/issues/72)。

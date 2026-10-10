@@ -17,7 +17,7 @@ import cn.darrenyou.doctorcam.feature.test.TestPage
 import cn.darrenyou.doctorcam.feature.test.TestRoute
 
 // Release 编译前显式关闭；门禁检查这个唯一字面量。
-private const val _debug = true
+private const val _debug = false
 
 @Composable
 fun DoctorCamApp() {
