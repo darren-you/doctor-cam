@@ -31,7 +31,7 @@ flowchart LR
 
 ## 开发入口
 
-仓根是唯一 Android Gradle 工程根，应用模块为 `app`，安装身份为 `cn.darrenyou.doctorcam`。准备 JDK 21、正式 SDK 37.2 / Build Tools 37.0.0、NDK 30.0.16248370 与 CMake 4.1.2，物化仓内固定的 `fast-deploy-core` 子模块后构建本地 ARM64 验证包。AGP 9 使用内置 Kotlin，三方版本由 Version Catalog 固定；UVCAndroid 1.0.13、OpenCV 与 ONNX Runtime 从 Maven Central 获取，Paddle Lite 由本仓脚本校验官方制品后准备到构建目录；仓库不保留旧 SDK 副本。完整步骤见[开发与验证说明](docs/operations/android-app/development.md)。
+仓根是唯一 Android Gradle 工程根，应用模块为 `app`，安装身份为 `com.silicicsoft.doctorcam`。准备 JDK 21、正式 SDK 37.2 / Build Tools 37.0.0、NDK 30.0.16248370 与 CMake 4.1.2，物化仓内固定的 `fast-deploy-core` 子模块后构建本地 ARM64 验证包。AGP 9 使用内置 Kotlin，三方版本由 Version Catalog 固定；UVCAndroid 1.0.13、OpenCV 与 ONNX Runtime 从 Maven Central 获取，Paddle Lite 由本仓脚本校验官方制品后准备到构建目录；仓库不保留旧 SDK 副本。完整步骤见[开发与验证说明](docs/operations/android-app/development.md)。
 
 ```bash
 git submodule update --init fast-deploy-core

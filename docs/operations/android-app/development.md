@@ -15,7 +15,7 @@
 | OpenCV | org.opencv:opencv:5.0.0.1，官方 Java / Native / Prefab；运行 API 版本 5.0.0 |
 | Paddle Lite | 官方最新 v2.14-rc with_extra；固定制品 URL 与整包 SHA-256，构建时仅准备头文件和 bundled 静态库 |
 | UVC / ONNX Runtime | com.herohan:UVCAndroid:1.0.13 / onnxruntime-android:1.31.0 |
-| 安装身份 | `cn.darrenyou.doctorcam`，Debug 不追加身份后缀 |
+| 安装身份 | `com.silicicsoft.doctorcam`，Debug 不追加身份后缀 |
 | 本地版本 | 工程根 `release.json`：1.0.0；Core 本地验证编号 1 |
 | 发布装配 | 仓内固定 `fast-deploy-core` 默认 Android 流水线；Job 为 `doctor-cam-android-app`，生产 `official / apk`，由 `mac-ci-1` 构建 |
 
@@ -23,7 +23,7 @@
 
 最新 AndroidX Core、Navigation 与 Compose UI 的实际 AAR 要求 compile SDK 37 和 AGP 9.1 及以上；Hilt 2.59 起要求 AGP 9。因此按[官方内置 Kotlin 迁移](https://developer.android.com/build/migrate-to-built-in-kotlin)删除 `org.jetbrains.kotlin.android` 插件，保留 Compose / Serialization 插件并统一为 2.4.21；根构建脚本显式提供同版 KGP，保证实际编译器版本与目录一致。KSP 2 与 Hilt 使用当前正式装配，不关闭内置 Kotlin 或恢复旧 DSL。
 
-旧仓内 SDK、Java JAR / JNI、静态模块、非目标 ABI 和旧 `app/release` 输出已删除。OpenCV 使用官方最新 5.0.0.1 修复包，Paddle Lite 使用官方最新 v2.14-rc with_extra，ONNX Runtime 使用 1.31.0；UVC 改用正式 Maven 发行的 UVCAndroid 1.0.13。Native 工具链采用 NDK 30 / CMake 4.1.2，Paddle 使用同版官方 bundled 静态库链接到本仓 JNI。Android 按正式最新 SDK 编译，保留 min 26、原安装身份、原模型与统一应用版本合同。
+旧仓内 SDK、Java JAR / JNI、静态模块、非目标 ABI 和旧 `app/release` 输出已删除。OpenCV 使用官方最新 5.0.0.1 修复包，Paddle Lite 使用官方最新 v2.14-rc with_extra，ONNX Runtime 使用 1.31.0；UVC 改用正式 Maven 发行的 UVCAndroid 1.0.13。Native 工具链采用 NDK 30 / CMake 4.1.2，Paddle 使用同版官方 bundled 静态库链接到本仓 JNI。Android 按正式最新 SDK 编译，保留 min 26、原模型与统一应用版本合同。
 
 ## 三方库版本事实
 
@@ -72,13 +72,13 @@ AGP 生成 variant 对应的 `BuildConfig`；Compose 页面不再使用 ViewBind
 
 ## 安装与启动
 
-先核对 `adb devices -l`，再显式选择本次授权的序列号；安装包保留原身份，不卸载或清空已有应用数据。`install -r` 只适用于已安装包与新包签名一致的情况；Debug 与正式 PKCS12 签名不同，不能用提升编号替代签名一致性。选择 ARM64 真机或 ARM64 模拟器，x86 模拟器不能加载本工程的 Native 库。
+先核对 `adb devices -l`，再显式选择本次授权的序列号；本次安装身份为 `com.silicicsoft.doctorcam`，与旧包属于独立安装；#87 已授权退役旧应用及其历史数据，先验证新包再清理旧安装。`install -r` 只适用于已安装包与新包签名一致的情况；Debug 与正式 PKCS12 签名不同，不能用提升编号替代签名一致性。选择 ARM64 真机或 ARM64 模拟器，x86 模拟器不能加载本工程的 Native 库。
 
 ```bash
 adb devices -l
 adb -s <serial> install -r app/build/outputs/apk/debug/app-debug.apk
-adb -s <serial> shell am start -W -n cn.darrenyou.doctorcam/.MainActivity
-adb -s <serial> shell pidof cn.darrenyou.doctorcam
+adb -s <serial> shell am start -W -n com.silicicsoft.doctorcam/.MainActivity
+adb -s <serial> shell pidof com.silicicsoft.doctorcam
 adb -s <serial> logcat -d -b crash
 ```
 
@@ -91,7 +91,7 @@ adb -s <serial> logcat -d -b crash
 ```bash
 adb -s <serial> install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb -s <serial> shell am instrument -w \
-  cn.darrenyou.doctorcam.test/androidx.test.runner.AndroidJUnitRunner
+  com.silicicsoft.doctorcam.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
 也可在确认目标后使用 Gradle 标准入口：
@@ -105,11 +105,11 @@ Debug 共 10 条 instrumentation 用例，Release 共 8 条；其中 7 条 Nativ
 
 | 用例 | 数量 | 验证范围 |
 | --- | --- | --- |
-| [DoctorCamUiInstrumentedTest](../../../app/src/androidTestDebug/java/cn/darrenyou/doctorcam/DoctorCamUiInstrumentedTest.kt) | Debug 3 | 真实 Activity 的设备空态与重建、隐藏 ONNX 可点击入口、面板拖动 / 折叠 / 展开、TestPage 导航与返回、真实横屏与系统安全区；要求没有接入 UVC 且旋转用例从竖屏启动，结束前恢复原 Activity 方向请求 |
-| [DoctorCamReleaseUiInstrumentedTest](../../../app/src/androidTestRelease/java/cn/darrenyou/doctorcam/DoctorCamReleaseUiInstrumentedTest.kt) | Release 1 | 正式 Activity 为非 debuggable，设备空态与重建、无 Debug Panel / TestPage / ONNX 可点击入口、真实横屏；要求没有接入 UVC 且从竖屏启动，结束前恢复原 Activity 方向请求 |
-| [NativeRuntimeInstrumentedTest](../../../app/src/androidTest/java/cn/darrenyou/doctorcam/NativeRuntimeInstrumentedTest.java) | 4 | OpenCV Native 运算、UVC Native 构造 / 销毁、NV21 红色色序与借用 Buffer、原 Paddle 模型推理、格式拒绝、重复释放与重初始化 |
-| [InferenceEngineInstrumentedTest](../../../app/src/androidTest/java/cn/darrenyou/doctorcam/InferenceEngineInstrumentedTest.kt) | 2 | 重构后的真实 Paddle / 隐藏 ONNX 引擎执行原 assets；输入尺寸、检测结果合同、重复关闭、关闭后拒绝与重建 |
-| [MediaRepositoryInstrumentedTest](../../../app/src/androidTest/java/cn/darrenyou/doctorcam/MediaRepositoryInstrumentedTest.kt) | 1 | API 29 及以上实际保存并读回 JPEG，检查 URI / MIME / 待完成状态、检测框色序、尺寸与输入回收；仅删除本次测试生成的 URI |
+| [DoctorCamUiInstrumentedTest](../../../app/src/androidTestDebug/java/com/silicicsoft/doctorcam/DoctorCamUiInstrumentedTest.kt) | Debug 3 | 真实 Activity 的设备空态与重建、隐藏 ONNX 可点击入口、面板拖动 / 折叠 / 展开、TestPage 导航与返回、真实横屏与系统安全区；要求没有接入 UVC 且旋转用例从竖屏启动，结束前恢复原 Activity 方向请求 |
+| [DoctorCamReleaseUiInstrumentedTest](../../../app/src/androidTestRelease/java/com/silicicsoft/doctorcam/DoctorCamReleaseUiInstrumentedTest.kt) | Release 1 | 正式 Activity 为非 debuggable，设备空态与重建、无 Debug Panel / TestPage / ONNX 可点击入口、真实横屏；要求没有接入 UVC 且从竖屏启动，结束前恢复原 Activity 方向请求 |
+| [NativeRuntimeInstrumentedTest](../../../app/src/androidTest/java/com/silicicsoft/doctorcam/NativeRuntimeInstrumentedTest.java) | 4 | OpenCV Native 运算、UVC Native 构造 / 销毁、NV21 红色色序与借用 Buffer、原 Paddle 模型推理、格式拒绝、重复释放与重初始化 |
+| [InferenceEngineInstrumentedTest](../../../app/src/androidTest/java/com/silicicsoft/doctorcam/InferenceEngineInstrumentedTest.kt) | 2 | 重构后的真实 Paddle / 隐藏 ONNX 引擎执行原 assets；输入尺寸、检测结果合同、重复关闭、关闭后拒绝与重建 |
+| [MediaRepositoryInstrumentedTest](../../../app/src/androidTest/java/com/silicicsoft/doctorcam/MediaRepositoryInstrumentedTest.kt) | 1 | API 29 及以上实际保存并读回 JPEG，检查 URI / MIME / 待完成状态、检测框色序、尺寸与输入回收；仅删除本次测试生成的 URI |
 
 合成图像用于验证执行、资源与图像合同，允许模型输出零检测，不提供识别准确率或真实摄像头证据。媒体回归验证独立的绘制与存储入口，不能替代真实 UVC 抓拍。JVM 检查、源码链接检查和本地 APK 构建也不能替代 Android instrumentation。
 
@@ -121,7 +121,7 @@ Debug 共 10 条 instrumentation 用例，Release 共 8 条；其中 7 条 Nativ
 
 正式构建必须读取 Core 分配的冻结版本快照，并校验真实 variant、安装身份、ABI 和版本。缺少快照时只允许前置检查与准备，禁止产包。`prepareReleaseClientVersion` 只生成准备事实，不分配正式编号或建立正式发布任务。
 
-[DoctorCamApp.kt](../../../app/src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt)中唯一的 `_debug` 字面量控制调试入口：开发模式使用 `true`，正式发布源码使用 `false`。所有 Release variant 在编译前调用同一 `verifyReleaseDebugDisabled`；编号准备也依赖该门禁。缺失、重复、非字面量或值为 `true` 时明确失败，须由维护者显式改为唯一 `false`。
+[DoctorCamApp.kt](../../../app/src/main/java/com/silicicsoft/doctorcam/DoctorCamApp.kt)中唯一的 `_debug` 字面量控制调试入口：开发模式使用 `true`，正式发布源码使用 `false`。所有 Release variant 在编译前调用同一 `verifyReleaseDebugDisabled`；编号准备也依赖该门禁。缺失、重复、非字面量或值为 `true` 时明确失败，须由维护者显式改为唯一 `false`。
 
 ```bash
 bash tool/test_check_release_debug.sh
@@ -132,7 +132,7 @@ bash tool/test_check_release_debug.sh
 
 ## 正式发布
 
-[deploy_config.sh](../../../deploy_config.sh)是本仓正式配置入口。Fast Deploy Job `doctor-cam-android-app` 只接受 `prod`，默认制品为 `official / apk`，实际 variant 为 `release`、架构为 `arm64-v8a`，安装身份保持 `cn.darrenyou.doctorcam`。Job 采用 `exclusive / isolated / store`，在 `mac-ci-1` 构建，不修改 Git，也没有部署设备维度；固定 Core 的默认 Android 流水线负责准备、编号、构建、登记与校验。
+[deploy_config.sh](../../../deploy_config.sh)是本仓正式配置入口。Fast Deploy Job `doctor-cam-android-app` 只接受 `prod`，默认制品为 `official / apk`，实际 variant 为 `release`、架构为 `arm64-v8a`，安装身份为 `com.silicicsoft.doctorcam`。Job 采用 `exclusive / isolated / store`，在 `mac-ci-1` 构建，不修改 Git，也没有部署设备维度；固定 Core 的默认 Android 流水线负责准备、编号、构建、登记与校验。
 
 历史源码和旧本地 Release 输出元数据只证明曾使用 `versionCode=1`、`versionName=1.0`，不能证明正式渠道发行或既有签名身份。首次正式发布保留已知编号 `1` 的高水位，按统一版本合同离线初始化 Core 的 Android 安装身份，再由实际活动 build stage 分配编号。当前声明基线为 `1.0.0`，正式编号以 Core 本次冻结版本快照及最终 APK 回读为准，不在文档或源码预填下一编号，也不建立产品私有编号算法。
 

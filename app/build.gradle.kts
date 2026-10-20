@@ -8,7 +8,7 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-val releaseDebugSourcePath = "app/src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt"
+val releaseDebugSourcePath = "app/src/main/java/com/silicicsoft/doctorcam/DoctorCamApp.kt"
 val releaseDebugCheckerPath = "tool/CheckReleaseDebug.java"
 val javaExecutableName = if (System.getProperty("os.name").lowercase().contains("windows")) {
     "java.exe"
@@ -128,7 +128,7 @@ if (clientVersionPending) {
 }
 
 android {
-    namespace = "cn.darrenyou.doctorcam"
+    namespace = "com.silicicsoft.doctorcam"
     compileSdk {
         version = release(37) { minorApiLevel = 2 }
     }
@@ -138,7 +138,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "cn.darrenyou.doctorcam"
+        applicationId = "com.silicicsoft.doctorcam"
         minSdk = 26
         targetSdk = 37
         versionCode = clientVersionCode

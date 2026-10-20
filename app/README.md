@@ -19,13 +19,13 @@ flowchart LR
 
 | 路径 | 职责 |
 | --- | --- |
-| `src/main/java/cn/darrenyou/doctorcam/` | Kotlin Application、单 Activity 与 Compose 组合根 |
-| `src/main/java/cn/darrenyou/doctorcam/feature/` | 设备列表、相机页面、ViewModel 与类型安全路由；TestPage |
-| `src/main/java/cn/darrenyou/doctorcam/core/camera/` | USB 视频设备观察、精确设备授权、相机会话与独立抓拍帧 |
-| `src/main/java/cn/darrenyou/doctorcam/core/inference/` | 推理接口、Paddle / ONNX 引擎、检测结果与工厂 |
-| `src/main/java/cn/darrenyou/doctorcam/core/media/` | 同帧检测结果绘制、系统相册写入及保存结果 |
-| `src/main/java/cn/darrenyou/doctorcam/core/ui/`、`ui/theme/` | 全局 Debug Panel 与 Material 3 系统主题 |
-| `src/main/java/cn/darrenyou/doctorcam/paddle/`、`utils/` | Java JNI 与 OpenCV 图像转换边界 |
+| `src/main/java/com/silicicsoft/doctorcam/` | Kotlin Application、单 Activity 与 Compose 组合根 |
+| `src/main/java/com/silicicsoft/doctorcam/feature/` | 设备列表、相机页面、ViewModel 与类型安全路由；TestPage |
+| `src/main/java/com/silicicsoft/doctorcam/core/camera/` | USB 视频设备观察、精确设备授权、相机会话与独立抓拍帧 |
+| `src/main/java/com/silicicsoft/doctorcam/core/inference/` | 推理接口、Paddle / ONNX 引擎、检测结果与工厂 |
+| `src/main/java/com/silicicsoft/doctorcam/core/media/` | 同帧检测结果绘制、系统相册写入及保存结果 |
+| `src/main/java/com/silicicsoft/doctorcam/core/ui/`、`ui/theme/` | 全局 Debug Panel 与 Material 3 系统主题 |
+| `src/main/java/com/silicicsoft/doctorcam/paddle/`、`utils/` | Java JNI 与 OpenCV 图像转换边界 |
 | `src/main/cpp/` | Paddle Lite JNI、C++ 图像预处理与推理后处理 |
 | `src/main/assets/` | 原 ONNX / Paddle 模型与 Paddle 标签 |
 | `src/main/res/` | Android 图标、系统主题与平台资源 |
@@ -41,4 +41,4 @@ flowchart LR
 
 OpenCV 5.0.0.1 官方 AAR 同时提供 Java、Native 和 Prefab；Paddle Lite 使用最新官方 v2.14-rc with_extra bundled 静态库，由 NDK 30 链接进本仓 JNI，ONNX Runtime 使用 1.31.0。UVC 使用官方 Maven `com.herohan:UVCAndroid:1.0.13`，直接消费支持 16 KiB 的原生库。原模型与标签保持不变，库升级后的执行合同由真实 Android 回归验证。
 
-版本从仓根 `release.json` 经固定 Core 读取，Debug 与 Release 构建使用同一安装身份；本地验证编号固定为 `1`，正式版本与 `versionCode` 由 Core 持久化分配。Release 必须先将 [DoctorCamApp.kt](src/main/java/cn/darrenyou/doctorcam/DoctorCamApp.kt) 中唯一 `_debug` 改为 `false` 并通过门禁，再从固定 Profile 准备 PKCS12 签名。`assembleRelease` 等待最终 APK 签名、发布标志和 Native 16 KiB 检查成功；详细合同见[正式发布说明](../docs/operations/android-app/development.md#正式发布)。
+版本从仓根 `release.json` 经固定 Core 读取，Debug 与 Release 构建使用同一安装身份；本地验证编号固定为 `1`，正式版本与 `versionCode` 由 Core 持久化分配。Release 必须先将 [DoctorCamApp.kt](src/main/java/com/silicicsoft/doctorcam/DoctorCamApp.kt) 中唯一 `_debug` 改为 `false` 并通过门禁，再从固定 Profile 准备 PKCS12 签名。`assembleRelease` 等待最终 APK 签名、发布标志和 Native 16 KiB 检查成功；详细合同见[正式发布说明](../docs/operations/android-app/development.md#正式发布)。

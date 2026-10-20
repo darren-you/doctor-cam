@@ -21,13 +21,13 @@
 extern "C" {
 #endif
 /*
- * Class:     cn_darrenyou_doctorcam_paddle_Native
+ * Class:     com_silicicsoft_doctorcam_paddle_Native
  * Method:    nativeInit
  * Signature:
  * (Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;II[F[FF)J
  */
 JNIEXPORT jlong JNICALL
-Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeInit(
+Java_com_silicicsoft_doctorcam_paddle_PaddleDetector_nativeInit(
     JNIEnv *env, jclass thiz, jstring jModelDir, jstring jLabelPath,
     jint cpuThreadNum, jstring jCPUPowerMode, jint inputWidth, jint inputHeight,
     jfloatArray jInputMean, jfloatArray jInputStd, jfloat scoreThreshold) {
@@ -42,12 +42,12 @@ Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeInit(
 }
 
 /*
- * Class:     cn_darrenyou_doctorcam_paddle_Native
+ * Class:     com_silicicsoft_doctorcam_paddle_Native
  * Method:    nativeRelease
  * Signature: (J)Z
  */
 JNIEXPORT jboolean JNICALL
-Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeRelease(
+Java_com_silicicsoft_doctorcam_paddle_PaddleDetector_nativeRelease(
     JNIEnv *env, jclass thiz, jlong ctx) {
   if (ctx == 0) {
     return JNI_FALSE;
@@ -58,7 +58,7 @@ Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeRelease(
 }
 
 JNIEXPORT jstring JNICALL
-Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeGetRuntimeVersion(
+Java_com_silicicsoft_doctorcam_paddle_PaddleDetector_nativeGetRuntimeVersion(
     JNIEnv *env, jclass thiz, jlong ctx) {
   if (ctx == 0) {
     return nullptr;
@@ -69,12 +69,12 @@ Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeGetRuntimeVersion(
 }
 
 /*
- * Class:     cn_darrenyou_doctorcam_paddle_Native
+ * Class:     com_silicicsoft_doctorcam_paddle_Native
  * Method:    nativeProcess
  * Signature: (JIIIILjava/lang/String;)Z
  */
 JNIEXPORT jboolean JNICALL
-Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeProcess(
+Java_com_silicicsoft_doctorcam_paddle_PaddleDetector_nativeProcess(
     JNIEnv *env, jclass thiz, jlong ctx, jobject jARGB8888ImageBitmap,
     jstring jsavedImagePath) {
   if (ctx == 0) {
@@ -140,7 +140,7 @@ Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeProcess(
 }
 
 JNIEXPORT jobjectArray JNICALL
-Java_cn_darrenyou_doctorcam_paddle_PaddleDetector_nativeProcessWithResults(
+Java_com_silicicsoft_doctorcam_paddle_PaddleDetector_nativeProcessWithResults(
         JNIEnv *env, jclass thiz, jlong ctx, jobject jARGB8888ImageBitmap) {
     if (ctx == 0) {
         LOGE("Invalid context pointer");
