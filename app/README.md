@@ -37,7 +37,7 @@ flowchart LR
 
 设备轻点预览、长按 Paddle 检测；ONNX 通过内部推理接口保留，没有公开选择入口。原 Activity / Fragment、ViewBinding XML 页面与 XML 导航已由 Compose 页面和类型安全路由替代，源码职责与生命周期见[架构说明](../docs/design/android-app/architecture.md)。
 
-本项目没有业务数据库、账号或后端 API。Hilt 直接装配摄像头、推理与相册依赖，页面使用 ViewModel / StateFlow；母版的 Room 启动统计、主题设置持久化与 Platform Infra Storage 示例不进入本应用。Material 3 主题跟随系统，Android 12 及以上使用动态颜色。
+本项目没有业务数据库、账号或后端 API。Hilt 直接装配摄像头、推理与相册依赖，页面使用 ViewModel / StateFlow；母版的 Room 启动统计、主题设置持久化与 项目内部运行模块 Storage 示例不进入本应用。Material 3 主题跟随系统，Android 12 及以上使用动态颜色。
 
 OpenCV 5.0.0.1 官方 AAR 同时提供 Java、Native 和 Prefab；Paddle Lite 使用最新官方 v2.14-rc with_extra bundled 静态库，由 NDK 30 链接进本仓 JNI，ONNX Runtime 使用 1.31.0。UVC 使用官方 Maven `com.herohan:UVCAndroid:1.0.13`，直接消费支持 16 KiB 的原生库。原模型与标签保持不变，库升级后的执行合同由真实 Android 回归验证。
 
