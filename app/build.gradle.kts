@@ -93,7 +93,7 @@ val verifyDebugNativeAlignment = tasks.register<Exec>("verifyDebugNativeAlignmen
     outputs.file(debugNativeAlignmentReport)
 }
 
-val clientVersionTool = rootProject.file("fast-deploy-core/shared/client_version.py")
+val clientVersionTool = rootProject.file("fast-deploy/core/shared/client_version.py")
 val clientRunId = providers.environmentVariable("FAST_DEPLOY_RUN_ID").orElse("").get()
 val clientSnapshotPath = providers.environmentVariable("FAST_DEPLOY_CLIENT_VERSION_SNAPSHOT_FILE").orNull
 val clientVersionPending = clientRunId.isNotEmpty() && clientSnapshotPath == null

@@ -17,7 +17,7 @@
 | UVC / ONNX Runtime | com.herohan:UVCAndroid:1.0.13 / onnxruntime-android:1.31.0 |
 | 安装身份 | `com.silicicsoft.doctorcam`，Debug 不追加身份后缀 |
 | 本地版本 | 工程根 `release.json`：1.0.0；Core 本地验证编号 1 |
-| 发布装配 | 仓内固定 `fast-deploy-core` 默认 Android 流水线；Job 为 `doctor-cam-android-app`，生产 `official / apk`，由 `mac-ci-1` 构建 |
+| 发布装配 | 仓内固定 `fast-deploy` 默认 Android 流水线；Job 为 `doctor-cam-android-app`，生产 `official / apk`，由 `mac-ci-1` 构建 |
 
 事实源为 [Wrapper](../../../gradle/wrapper/gradle-wrapper.properties)、[版本目录](../../../gradle/libs.versions.toml)、[应用 Gradle](../../../app/build.gradle.kts)、[Paddle 准备脚本](../../../tool/prepare_paddle_lite.py)、[CMake](../../../app/src/main/cpp/CMakeLists.txt)和 [release.json](../../../release.json)。[官方 AGP 兼容表](https://developer.android.com/build/releases/about-agp)要求 AGP 9.4 使用 Gradle 9.6 及以上；本仓固定正式最新版 9.8.1，不使用动态版本。
 
@@ -46,7 +46,7 @@ Compose 各组件按[官方 BOM 映射](https://developer.android.com/develop/ui
 ```bash
 git clone --recurse-submodules https://github.com/darren-you/doctor-cam.git
 cd doctor-cam
-git submodule update --init fast-deploy-core
+git submodule update --init fast-deploy
 ```
 
 设置本机 `JAVA_HOME` 与 `ANDROID_HOME`，使用官方 Command-line Tools 23 准备明确的 SDK 组件；37.2 平台的 `MinToolsRev=22`，旧安装器不能作为当前准备基线。生成的 Android APK 仅为 ARM64；本轮删除的是产品仓库中的旧 SDK 文件，不会卸载其他产品可能消费的本机 SDK 组件。
@@ -150,7 +150,7 @@ Release 编号准备与编译都依赖同一 Debug 静态门禁及签名准备�
 发布前须将已保存的 Job 清单和固定 Core 传播到真实在线 Panel 消费者，并回读 Job；配置文件存在或本地清单校验不能证明在线任务可用。通过 Panel 触发该 Job，或在已准备控制面连接的环境使用既有入口：
 
 ```bash
-bash fast-deploy-core/deploy-control/trigger_build.sh \
+bash fast-deploy/core/deploy-control/trigger_build.sh \
   --job doctor-cam-android-app --build-env prod
 ```
 

@@ -23,7 +23,7 @@ export PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID
 
 # 只读取本次受控快照的产品签名 Profile，不消费外部文件 override。
 # shellcheck disable=SC1091
-source "${PROJECT_ROOT}/fast-deploy-core/shared/load_workspace_profile_env.sh"
+source "${PROJECT_ROOT}/fast-deploy/core/shared/load_workspace_profile_env.sh"
 doctor_cam_signing_profile="$(resolve_workspace_shared_profile_env_file doctor-cam/android-app/shared.prod.env)" || {
   printf '%s\n' '[ERROR] DoctorCam 固定签名 Profile 不可用' >&2
   return 1
