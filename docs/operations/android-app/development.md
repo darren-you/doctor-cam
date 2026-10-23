@@ -117,7 +117,7 @@ Debug 共 10 条 instrumentation 用例，Release 共 8 条；其中 7 条 Nativ
 
 ## 版本与 Release 门禁
 
-[release.json](../../../release.json)只声明初始／最低目标版本 `1.0.0`。Gradle 消费仓内固定 Core 的 `shared/client_version.py`，本地构建使用验证编号 `1` 并写入 `client_local_validation=true` 与空 `client_run_id`；构建不修改版本文件或提交 Git。
+[release.json](../../../release.json)声明与冻结数字版本分支一致的产品版本 `1.0.0`。同一版本分支的新构建保持版本不变，由 Core 持久递增 `build_number`，不自动增加 patch。Gradle 消费仓内固定 Core 的 `shared/client_version.py`，本地构建使用验证编号 `1` 并写入 `client_local_validation=true` 与空 `client_run_id`；构建不修改版本文件或提交 Git。
 
 正式构建必须读取 Core 分配的冻结版本快照，并校验真实 variant、安装身份、ABI 和版本。缺少快照时只允许前置检查与准备，禁止产包。`prepareReleaseClientVersion` 只生成准备事实，不分配正式编号或建立正式发布任务。
 
