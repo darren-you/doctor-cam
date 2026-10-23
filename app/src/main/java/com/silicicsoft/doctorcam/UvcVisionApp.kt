@@ -20,7 +20,7 @@ import com.silicicsoft.doctorcam.feature.test.TestRoute
 private const val _debug = false
 
 @Composable
-fun DoctorCamApp() {
+fun UvcVisionApp() {
     val navController = rememberNavController()
     Box(Modifier.fillMaxSize()) {
         NavHost(navController = navController, startDestination = DevicesRoute) {

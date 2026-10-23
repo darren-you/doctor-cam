@@ -1,5 +1,5 @@
 schema_version: 5
-name: doctor-cam
+name: uvc-vision
 workspace_area: work-personal
 archetype: product-single-surface
 lifecycle: incubating
@@ -16,7 +16,7 @@ depends_on: []
 default_workflows:
   - release-android-app
 github:
-  repo: darren-you/doctor-cam
+  repo: darren-you/uvc-vision
   about: 原生 Android USB UVC 摄像头预览与端侧目标检测实验项目，采用 Kotlin、Jetpack Compose、Hilt、JNI、OpenCV、ONNX Runtime 和 Paddle Lite
   topics:
     - darren-space

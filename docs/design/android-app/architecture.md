@@ -1,10 +1,10 @@
 # Android 架构与实现边界
 
-DoctorCam 使用 Kotlin、Compose、Material 3、类型安全 Navigation Compose、Hilt、ViewModel 与协程 / StateFlow。仓根是 Android 工程根，`app` 为业务应用，OpenCV 官方 Maven AAR 统一提供 Java / Native 与 Prefab；Paddle 以 Java JNI 和 C++ 边界连接构建时校验下载的官方 ARM64 bundled 静态库。应用的持久输出是系统相册图片，没有自有后端、账号或业务数据库。
+UvcVision 使用 Kotlin、Compose、Material 3、类型安全 Navigation Compose、Hilt、ViewModel 与协程 / StateFlow。仓根是 Android 工程根，`app` 为业务应用，OpenCV 官方 Maven AAR 统一提供 Java / Native 与 Prefab；Paddle 以 Java JNI 和 C++ 边界连接构建时校验下载的官方 ARM64 bundled 静态库。应用的持久输出是系统相册图片，没有自有后端、账号或业务数据库。
 
 ## 页面与依赖装配
 
-[DoctorCamApplication](../../../app/src/main/java/com/silicicsoft/doctorcam/DoctorCamApplication.kt)建立 Hilt 依赖图，[MainActivity](../../../app/src/main/java/com/silicicsoft/doctorcam/MainActivity.kt)负责单 Activity、边到边系统栏与 Material 3 主题。[DoctorCamApp](../../../app/src/main/java/com/silicicsoft/doctorcam/DoctorCamApp.kt)使用类型安全 `DevicesRoute`、`CameraRoute`、`TestRoute` 组织 Compose 导航。
+[UvcVisionApplication](../../../app/src/main/java/com/silicicsoft/doctorcam/UvcVisionApplication.kt)建立 Hilt 依赖图，[MainActivity](../../../app/src/main/java/com/silicicsoft/doctorcam/MainActivity.kt)负责单 Activity、边到边系统栏与 Material 3 主题。[UvcVisionApp](../../../app/src/main/java/com/silicicsoft/doctorcam/UvcVisionApp.kt)使用类型安全 `DevicesRoute`、`CameraRoute`、`TestRoute` 组织 Compose 导航。
 
 [设备列表页](../../../app/src/main/java/com/silicicsoft/doctorcam/feature/devices/DevicesPage.kt)通过 ViewModel 收集实际 USB 视频设备。轻点进入普通预览，长按进入 Paddle 检测。导航携带设备 ID、VID、PID 与检测模式；进入预览前由 Activity Result API 申请所需权限，Android 8 / 9 同时要求相机与存储权限，Android 10 及以上只要求相机权限。全部权限授予后再次核对所选设备是否仍存在。
 

@@ -24,16 +24,16 @@ data object TestRoute
 @OptIn(ExperimentalMaterial3Api::class)
 fun TestPage(onBack: () -> Unit) {
     Scaffold(
-        modifier = Modifier.testTag("doctorcam_test_screen"),
+        modifier = Modifier.testTag("uvc_vision_test_screen"),
         topBar = { TopAppBar(title = { Text("TestPage") }) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("DoctorCam 开发检查")
+            Text("UVC Vision 开发检查")
             Text("版本 ${BuildConfig.VERSION_NAME} / ${BuildConfig.VERSION_CODE}")
             Text("Android ${Build.VERSION.RELEASE} · API ${Build.VERSION.SDK_INT}")
             Text("ABI ${Build.SUPPORTED_ABIS.joinToString()}")
             Text("当前为本地验证包。UVC 预览与抓拍需要真实摄像头；原生库和模型由 instrumentation 回归验证。")
-            Button(onClick = onBack, modifier = Modifier.testTag("doctorcam_test_back")) { Text("返回业务页面") }
+            Button(onClick = onBack, modifier = Modifier.testTag("uvc_vision_test_back")) { Text("返回业务页面") }
         }
     }
 }

@@ -1,6 +1,6 @@
-# DoctorCam
+# UVC Vision
 
-DoctorCam 是个人维护的 Android USB UVC 摄像头与端侧视觉实验项目。应用使用 Kotlin、Jetpack Compose、Material 3、类型安全 Navigation Compose、Hilt 与协程 / StateFlow；OpenCV、Paddle Lite / JNI 和 ONNX Runtime 承载图像转换与推理。项目仍处于原型阶段，不代表已完成商店发布、摄像头兼容性或医疗用途验证。
+UVC Vision 是个人维护的 Android USB UVC 摄像头与端侧视觉实验项目。应用使用 Kotlin、Jetpack Compose、Material 3、类型安全 Navigation Compose、Hilt 与协程 / StateFlow；OpenCV、Paddle Lite / JNI 和 ONNX Runtime 承载图像转换与推理。项目仍处于原型阶段，不代表已完成商店发布、摄像头兼容性或医疗用途验证。
 
 ## 当前能力
 
@@ -16,7 +16,7 @@ DoctorCam 是个人维护的 Android USB UVC 摄像头与端侧视觉实验项�
 
 ```mermaid
 flowchart LR
-    build[Gradle Kotlin DSL / Version Catalog / KSP] --> app[MainActivity / DoctorCamApp：Compose + Hilt]
+    build[Gradle Kotlin DSL / Version Catalog / KSP] --> app[MainActivity / UvcVisionApp：Compose + Hilt]
     app --> features[设备 / 相机 / TestPage：ViewModel + StateFlow]
     devices[USB UVC 摄像头] --> camera[core/camera：设备观察与相机控制]
     features --> camera
@@ -31,7 +31,7 @@ flowchart LR
 
 ## 开发入口
 
-仓根是唯一 Android Gradle 工程根，应用模块为 `app`，安装身份为 `com.silicicsoft.doctorcam`。准备 JDK 21、正式 SDK 37.2 / Build Tools 37.0.0、NDK 30.0.16248370 与 CMake 4.1.2，物化仓内固定的 `fast-deploy` 子模块后构建本地 ARM64 验证包。AGP 9 使用内置 Kotlin，三方版本由 Version Catalog 固定；UVCAndroid 1.0.13、OpenCV 与 ONNX Runtime 从 Maven Central 获取，Paddle Lite 由本仓脚本校验官方制品后准备到构建目录；仓库不保留旧 SDK 副本。完整步骤见[开发与验证说明](docs/operations/android-app/development.md)。
+仓根是唯一 Android Gradle 工程根，应用模块为 `app`，展示名为 `UVC Vision`，安装身份保留 `com.silicicsoft.doctorcam`；仓库改名不改变已安装应用身份和签名。准备 JDK 21、正式 SDK 37.2 / Build Tools 37.0.0、NDK 30.0.16248370 与 CMake 4.1.2，物化仓内固定的 `fast-deploy` 子模块后构建本地 ARM64 验证包。AGP 9 使用内置 Kotlin，三方版本由 Version Catalog 固定；UVCAndroid 1.0.13、OpenCV 与 ONNX Runtime 从 Maven Central 获取，Paddle Lite 由本仓脚本校验官方制品后准备到构建目录；仓库不保留旧 SDK 副本。完整步骤见[开发与验证说明](docs/operations/android-app/development.md)。
 
 ```bash
 git submodule update --init fast-deploy
@@ -52,6 +52,6 @@ Debug APK 位于 `app/build/outputs/apk/debug/app-debug.apk`，Android 8.0 / API
 - [Android 工程标准](https://github.com/darren-you/darren-space/blob/master/harness/docs/workspace/standards/android-app/android-app-golden-path.md)
 - [统一应用版本标准](https://github.com/darren-you/darren-space/blob/master/harness/docs/workspace/standards/client-version-golden-path.md)
 
-工作区逻辑身份为 `doctor-cam`，归属 `work-personal`。`release.json` 只声明初始／最低目标版本 `1.0.0`；Gradle 通过仓内固定 Core 消费本地验证输入或 Core 正式版本快照。本地 APK 使用验证编号 `1` 并标记 `client_local_validation=true`，不能正式分发。
+工作区逻辑身份为 `uvc-vision`，归属 `work-personal`。`release.json` 声明与冻结数字版本分支一致的产品版本 `1.0.0`；Gradle 通过仓内固定 Core 消费本地验证输入或 Core 正式版本快照。同一版本分支的新构建保持版本不变，由 Core 持久递增 `build_number`，不自动增加 patch。本地 APK 使用验证编号 `1` 并标记 `client_local_validation=true`，不能正式分发。
 
-正式发布入口为 Fast Deploy 的 `doctor-cam-android-app`，由仓根 [deploy_config.sh](deploy_config.sh) 绑定生产 `official / apk` 渠道，在 `mac-ci-1` 构建。Release 通过同一 Debug 静态门禁、固定 Profile 的 PKCS12 签名、最终证书回读和全库 16 KiB 检查；构建不修改 Git。发布合同见[开发说明](docs/operations/android-app/development.md#正式发布)。发布配置接入与本地运行不代表正式编号、正式 APK 或 GitHub Release 已验收；运行证据与本次发布结果统一记录在[工作区 Issue 72](https://github.com/darren-you/darren-space/issues/72)。
+正式发布入口为 Fast Deploy 的 `uvc-vision-android-app`，由仓根 [deploy_config.sh](deploy_config.sh) 绑定生产 `official / apk` 渠道，在 `mac-ci-1` 构建。Release 通过同一 Debug 静态门禁、固定 Profile 的 PKCS12 签名、最终证书回读和全库 16 KiB 检查；构建不修改 Git。发布合同见[开发说明](docs/operations/android-app/development.md#正式发布)。发布配置接入与本地运行不代表正式编号、正式 APK 或 GitHub Release 已验收；运行证据与本次发布结果统一记录在[工作区 Issue 72](https://github.com/darren-you/darren-space/issues/72)。

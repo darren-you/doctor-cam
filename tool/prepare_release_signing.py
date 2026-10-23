@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""从本次发布的固定 Profile 准备并校验 DoctorCam PKCS12 签名文件。"""
+"""从本次发布的固定 Profile 准备并校验 UVC Vision PKCS12 签名文件。"""
 
 import argparse
 import base64
@@ -15,17 +15,17 @@ import tempfile
 
 def prepare_signing(keytool):
     fields = (
-        "DOCTOR_CAM_ANDROID_SIGNING_KEYSTORE_BASE64",
-        "DOCTOR_CAM_ANDROID_SIGNING_PASSWORD",
-        "DOCTOR_CAM_ANDROID_SIGNING_KEY_ALIAS",
-        "DOCTOR_CAM_ANDROID_SIGNING_CERT_SHA256",
+        "UVC_VISION_ANDROID_SIGNING_KEYSTORE_BASE64",
+        "UVC_VISION_ANDROID_SIGNING_PASSWORD",
+        "UVC_VISION_ANDROID_SIGNING_KEY_ALIAS",
+        "UVC_VISION_ANDROID_SIGNING_CERT_SHA256",
     )
     values = {name: os.environ.get(name, "") for name in fields}
     for name, value in values.items():
         if not value:
             raise ValueError(f"缺少签名字段 {name}")
     if values[fields[2]] != "doctor-cam":
-        raise ValueError("签名 key alias 必须为 doctor-cam")
+        raise ValueError("签名 key alias 必须为现有签名身份 doctor-cam")
     expected_digest = values[fields[3]].lower()
     if not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
         raise ValueError("签名证书 SHA-256 必须为 64 位十六进制")
@@ -38,7 +38,7 @@ def prepare_signing(keytool):
 
     project_root = Path(__file__).resolve().parent.parent
     directory = project_root / "app/build/signing"
-    output = directory / "doctor-cam-release.p12"
+    output = directory / "uvc-vision-release.p12"
     for path in (project_root / "app", project_root / "app/build", directory, output):
         if path.is_symlink():
             raise ValueError("签名输出路径不能包含符号链接")

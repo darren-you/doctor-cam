@@ -17,7 +17,7 @@
 | UVC / ONNX Runtime | com.herohan:UVCAndroid:1.0.13 / onnxruntime-android:1.31.0 |
 | 安装身份 | `com.silicicsoft.doctorcam`，Debug 不追加身份后缀 |
 | 本地版本 | 工程根 `release.json`：1.0.0；Core 本地验证编号 1 |
-| 发布装配 | 仓内固定 `fast-deploy` 默认 Android 流水线；Job 为 `doctor-cam-android-app`，生产 `official / apk`，由 `mac-ci-1` 构建 |
+| 发布装配 | 仓内固定 `fast-deploy` 默认 Android 流水线；Job 为 `uvc-vision-android-app`，生产 `official / apk`，由 `mac-ci-1` 构建 |
 
 事实源为 [Wrapper](../../../gradle/wrapper/gradle-wrapper.properties)、[版本目录](../../../gradle/libs.versions.toml)、[应用 Gradle](../../../app/build.gradle.kts)、[Paddle 准备脚本](../../../tool/prepare_paddle_lite.py)、[CMake](../../../app/src/main/cpp/CMakeLists.txt)和 [release.json](../../../release.json)。[官方 AGP 兼容表](https://developer.android.com/build/releases/about-agp)要求 AGP 9.4 使用 Gradle 9.6 及以上；本仓固定正式最新版 9.8.1，不使用动态版本。
 
@@ -44,8 +44,8 @@ Compose 各组件按[官方 BOM 映射](https://developer.android.com/develop/ui
 ## 准备与构建
 
 ```bash
-git clone --recurse-submodules https://github.com/darren-you/doctor-cam.git
-cd doctor-cam
+git clone --recurse-submodules https://github.com/darren-you/uvc-vision.git
+cd uvc-vision
 git submodule update --init fast-deploy
 ```
 
@@ -105,8 +105,8 @@ Debug 共 10 条 instrumentation 用例，Release 共 8 条；其中 7 条 Nativ
 
 | 用例 | 数量 | 验证范围 |
 | --- | --- | --- |
-| [DoctorCamUiInstrumentedTest](../../../app/src/androidTestDebug/java/com/silicicsoft/doctorcam/DoctorCamUiInstrumentedTest.kt) | Debug 3 | 真实 Activity 的设备空态与重建、隐藏 ONNX 可点击入口、面板拖动 / 折叠 / 展开、TestPage 导航与返回、真实横屏与系统安全区；要求没有接入 UVC 且旋转用例从竖屏启动，结束前恢复原 Activity 方向请求 |
-| [DoctorCamReleaseUiInstrumentedTest](../../../app/src/androidTestRelease/java/com/silicicsoft/doctorcam/DoctorCamReleaseUiInstrumentedTest.kt) | Release 1 | 正式 Activity 为非 debuggable，设备空态与重建、无 Debug Panel / TestPage / ONNX 可点击入口、真实横屏；要求没有接入 UVC 且从竖屏启动，结束前恢复原 Activity 方向请求 |
+| [UvcVisionUiInstrumentedTest](../../../app/src/androidTestDebug/java/com/silicicsoft/doctorcam/UvcVisionUiInstrumentedTest.kt) | Debug 3 | 真实 Activity 的设备空态与重建、隐藏 ONNX 可点击入口、面板拖动 / 折叠 / 展开、TestPage 导航与返回、真实横屏与系统安全区；要求没有接入 UVC 且旋转用例从竖屏启动，结束前恢复原 Activity 方向请求 |
+| [UvcVisionReleaseUiInstrumentedTest](../../../app/src/androidTestRelease/java/com/silicicsoft/doctorcam/UvcVisionReleaseUiInstrumentedTest.kt) | Release 1 | 正式 Activity 为非 debuggable，设备空态与重建、无 Debug Panel / TestPage / ONNX 可点击入口、真实横屏；要求没有接入 UVC 且从竖屏启动，结束前恢复原 Activity 方向请求 |
 | [NativeRuntimeInstrumentedTest](../../../app/src/androidTest/java/com/silicicsoft/doctorcam/NativeRuntimeInstrumentedTest.java) | 4 | OpenCV Native 运算、UVC Native 构造 / 销毁、NV21 红色色序与借用 Buffer、原 Paddle 模型推理、格式拒绝、重复释放与重初始化 |
 | [InferenceEngineInstrumentedTest](../../../app/src/androidTest/java/com/silicicsoft/doctorcam/InferenceEngineInstrumentedTest.kt) | 2 | 重构后的真实 Paddle / 隐藏 ONNX 引擎执行原 assets；输入尺寸、检测结果合同、重复关闭、关闭后拒绝与重建 |
 | [MediaRepositoryInstrumentedTest](../../../app/src/androidTest/java/com/silicicsoft/doctorcam/MediaRepositoryInstrumentedTest.kt) | 1 | API 29 及以上实际保存并读回 JPEG，检查 URI / MIME / 待完成状态、检测框色序、尺寸与输入回收；仅删除本次测试生成的 URI |
@@ -117,11 +117,11 @@ Debug 共 10 条 instrumentation 用例，Release 共 8 条；其中 7 条 Nativ
 
 ## 版本与 Release 门禁
 
-[release.json](../../../release.json)只声明初始／最低目标版本 `1.0.0`。Gradle 消费仓内固定 Core 的 `shared/client_version.py`，本地构建使用验证编号 `1` 并写入 `client_local_validation=true` 与空 `client_run_id`；构建不修改版本文件或提交 Git。
+[release.json](../../../release.json)声明与冻结数字版本分支一致的产品版本 `1.0.0`。同一版本分支的新构建保持版本不变，由 Core 持久递增 `build_number`，不自动增加 patch。Gradle 消费仓内固定 Core 的 `shared/client_version.py`，本地构建使用验证编号 `1` 并写入 `client_local_validation=true` 与空 `client_run_id`；构建不修改版本文件或提交 Git。
 
 正式构建必须读取 Core 分配的冻结版本快照，并校验真实 variant、安装身份、ABI 和版本。缺少快照时只允许前置检查与准备，禁止产包。`prepareReleaseClientVersion` 只生成准备事实，不分配正式编号或建立正式发布任务。
 
-[DoctorCamApp.kt](../../../app/src/main/java/com/silicicsoft/doctorcam/DoctorCamApp.kt)中唯一的 `_debug` 字面量控制调试入口：开发模式使用 `true`，正式发布源码使用 `false`。所有 Release variant 在编译前调用同一 `verifyReleaseDebugDisabled`；编号准备也依赖该门禁。缺失、重复、非字面量或值为 `true` 时明确失败，须由维护者显式改为唯一 `false`。
+[UvcVisionApp.kt](../../../app/src/main/java/com/silicicsoft/doctorcam/UvcVisionApp.kt)中唯一的 `_debug` 字面量控制调试入口：开发模式使用 `true`，正式发布源码使用 `false`。所有 Release variant 在编译前调用同一 `verifyReleaseDebugDisabled`；编号准备也依赖该门禁。缺失、重复、非字面量或值为 `true` 时明确失败，须由维护者显式改为唯一 `false`。
 
 ```bash
 bash tool/test_check_release_debug.sh
@@ -132,18 +132,18 @@ bash tool/test_check_release_debug.sh
 
 ## 正式发布
 
-[deploy_config.sh](../../../deploy_config.sh)是本仓正式配置入口。Fast Deploy Job `doctor-cam-android-app` 只接受 `prod`，默认制品为 `official / apk`，实际 variant 为 `release`、架构为 `arm64-v8a`，安装身份为 `com.silicicsoft.doctorcam`。Job 采用 `exclusive / isolated / store`，在 `mac-ci-1` 构建，不修改 Git，也没有部署设备维度；固定 Core 的默认 Android 流水线负责准备、编号、构建、登记与校验。
+[deploy_config.sh](../../../deploy_config.sh)是本仓正式配置入口。Fast Deploy Job `uvc-vision-android-app` 只接受 `prod`，默认制品为 `official / apk`，实际 variant 为 `release`、架构为 `arm64-v8a`，安装身份为 `com.silicicsoft.doctorcam`。Job 采用 `exclusive / isolated / store`，在 `mac-ci-1` 构建，不修改 Git，也没有部署设备维度；固定 Core 的默认 Android 流水线负责准备、编号、构建、登记与校验。
 
 历史源码和旧本地 Release 输出元数据只证明曾使用 `versionCode=1`、`versionName=1.0`，不能证明正式渠道发行或既有签名身份。首次正式发布保留已知编号 `1` 的高水位，按统一版本合同离线初始化 Core 的 Android 安装身份，再由实际活动 build stage 分配编号。当前声明基线为 `1.0.0`，正式编号以 Core 本次冻结版本快照及最终 APK 回读为准，不在文档或源码预填下一编号，也不建立产品私有编号算法。
 
-签名材料的唯一事实源为 `secret-data/profiles/doctor-cam/android-app/shared.prod.env`。配置通过仓内固定 Core 的 Profile loader 读取本次冻结快照，消费以下四个字段，不允许外部文件覆盖：
+签名材料的唯一事实源为 `secret-data/profiles/uvc-vision/android-app/shared.prod.env`。配置通过仓内固定 Core 的 Profile loader 读取本次冻结快照，消费以下四个字段，不允许外部文件覆盖：
 
-- `DOCTOR_CAM_ANDROID_SIGNING_KEYSTORE_BASE64`
-- `DOCTOR_CAM_ANDROID_SIGNING_PASSWORD`
-- `DOCTOR_CAM_ANDROID_SIGNING_KEY_ALIAS`
-- `DOCTOR_CAM_ANDROID_SIGNING_CERT_SHA256`
+- `UVC_VISION_ANDROID_SIGNING_KEYSTORE_BASE64`
+- `UVC_VISION_ANDROID_SIGNING_PASSWORD`
+- `UVC_VISION_ANDROID_SIGNING_KEY_ALIAS`
+- `UVC_VISION_ANDROID_SIGNING_CERT_SHA256`
 
-PKCS12 alias 固定为 `doctor-cam`；首次正式证书的公开 SHA-256 为 `0c8472fdcf61d45a66500368da43f2c254eca5dc4bd5be4ca0334b170376fbdc`。[签名准备脚本](../../../tool/prepare_release_signing.py)在构建目录以受限文件权限物化 PKCS12，通过 `keytool` 从实际证书字节核对摘要；密码经环境变量传入，不打印签名秘密，构建产物不提交 Git。
+PKCS12 alias 保留既有签名身份 `doctor-cam`；首次正式证书的公开 SHA-256 为 `0c8472fdcf61d45a66500368da43f2c254eca5dc4bd5be4ca0334b170376fbdc`。[签名准备脚本](../../../tool/prepare_release_signing.py)在构建目录以受限文件权限物化 PKCS12，通过 `keytool` 从实际证书字节核对摘要；密码经环境变量传入，不打印签名秘密，构建产物不提交 Git。
 
 Release 编号准备与编译都依赖同一 Debug 静态门禁及签名准备。`assembleRelease` 必须等待 [最终 APK 检查](../../../tool/check_release_apk.py)与 [Native 对齐检查](../../../tool/check_native_alignment.py)通过：只有一个正式签名者、证书匹配冻结 Profile、`debuggable=false`、`testOnly=false`，全部 Native 库满足 16 KiB 合同。Core 另从最终 Manifest 核对 `versionName`、Core 分配的整数 `versionCode`、安装身份、`client_local_validation=false` 与当前 `client_run_id`，再冻结制品摘要。
 
@@ -151,7 +151,7 @@ Release 编号准备与编译都依赖同一 Debug 静态门禁及签名准备�
 
 ```bash
 bash fast-deploy/core/deploy-control/trigger_build.sh \
-  --job doctor-cam-android-app --build-env prod
+  --job uvc-vision-android-app --build-env prod
 ```
 
 正式 APK 构建完成后，使用同一冻结版本与签名配置生成 Release instrumentation，显式选择 Release 测试 variant：
@@ -205,8 +205,8 @@ java -jar <bundletool-all.jar> dump config \
 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
   "emulator" "system-images;android-37.0;google_apis_ps16k;arm64-v8a"
 "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
-  -n doctor-cam-api37-16k-arm64 -k "system-images;android-37.0;google_apis_ps16k;arm64-v8a" -d pixel_8
-"$ANDROID_HOME/emulator/emulator" -avd doctor-cam-api37-16k-arm64
+  -n uvc-vision-api37-16k-arm64 -k "system-images;android-37.0;google_apis_ps16k;arm64-v8a" -d pixel_8
+"$ANDROID_HOME/emulator/emulator" -avd uvc-vision-api37-16k-arm64
 adb -s <16k-serial> shell getconf PAGE_SIZE
 ```
 

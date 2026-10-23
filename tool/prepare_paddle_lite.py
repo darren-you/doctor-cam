@@ -27,9 +27,9 @@ MEMBERS = {
 
 
 def prepare(output_directory: Path) -> None:
-    with tempfile.TemporaryDirectory(prefix="doctor-cam-paddle-lite-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="uvc-vision-paddle-lite-") as temporary:
         archive_path = Path(temporary) / "paddle-lite.tar.gz"
-        request = urllib.request.Request(ARCHIVE_URL, headers={"User-Agent": "DoctorCam-build"})
+        request = urllib.request.Request(ARCHIVE_URL, headers={"User-Agent": "UvcVision-build"})
         digest = hashlib.sha256()
         with urllib.request.urlopen(request, timeout=60) as response, archive_path.open("wb") as archive:
             while chunk := response.read(1024 * 1024):

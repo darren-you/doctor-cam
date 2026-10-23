@@ -8,7 +8,7 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-val releaseDebugSourcePath = "app/src/main/java/com/silicicsoft/doctorcam/DoctorCamApp.kt"
+val releaseDebugSourcePath = "app/src/main/java/com/silicicsoft/doctorcam/UvcVisionApp.kt"
 val releaseDebugCheckerPath = "tool/CheckReleaseDebug.java"
 val javaExecutableName = if (System.getProperty("os.name").lowercase().contains("windows")) {
     "java.exe"
@@ -42,10 +42,10 @@ val verifyReleaseDebugFixture = tasks.register<Exec>("verifyReleaseDebugFixture"
 }
 
 val releaseSigningScript = rootProject.file("tool/prepare_release_signing.py")
-val releaseKeystore = layout.buildDirectory.file("signing/doctor-cam-release.p12")
-val releaseSigningPassword = providers.environmentVariable("DOCTOR_CAM_ANDROID_SIGNING_PASSWORD").orNull
-val releaseSigningAlias = providers.environmentVariable("DOCTOR_CAM_ANDROID_SIGNING_KEY_ALIAS").orNull
-val releaseSigningCertificate = providers.environmentVariable("DOCTOR_CAM_ANDROID_SIGNING_CERT_SHA256")
+val releaseKeystore = layout.buildDirectory.file("signing/uvc-vision-release.p12")
+val releaseSigningPassword = providers.environmentVariable("UVC_VISION_ANDROID_SIGNING_PASSWORD").orNull
+val releaseSigningAlias = providers.environmentVariable("UVC_VISION_ANDROID_SIGNING_KEY_ALIAS").orNull
+val releaseSigningCertificate = providers.environmentVariable("UVC_VISION_ANDROID_SIGNING_CERT_SHA256")
     .orElse("").get()
 val prepareReleaseSigning = tasks.register<Exec>("prepareReleaseSigning") {
     group = "build setup"
