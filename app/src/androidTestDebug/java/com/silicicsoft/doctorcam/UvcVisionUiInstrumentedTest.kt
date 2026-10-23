@@ -28,7 +28,7 @@ import org.junit.runner.RunWith
  * 不注入虚构设备，不把空态与导航测试当作真实摄像头预览或抓拍验收。
  */
 @RunWith(AndroidJUnit4::class)
-class DoctorCamUiInstrumentedTest {
+class UvcVisionUiInstrumentedTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
 
@@ -51,25 +51,25 @@ class DoctorCamUiInstrumentedTest {
         composeRule.onNodeWithTag("debug_panel_expanded").assertIsDisplayed()
         composeRule.onNodeWithText("TestPage").performClick()
 
-        composeRule.onNodeWithTag("doctorcam_test_screen").assertIsDisplayed()
-        composeRule.onNodeWithTag("doctorcam_devices_screen").assertDoesNotExist()
+        composeRule.onNodeWithTag("uvc_vision_test_screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("uvc_vision_devices_screen").assertDoesNotExist()
         composeRule.onNodeWithTag("debug_panel_expanded").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("折叠调试面板").performClick()
         composeRule.onNodeWithTag("debug_panel_collapsed").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("展开调试面板").performClick()
         composeRule.onNodeWithTag("debug_panel_expanded").assertIsDisplayed()
 
-        composeRule.onNodeWithTag("doctorcam_test_back").performClick()
+        composeRule.onNodeWithTag("uvc_vision_test_back").performClick()
 
         assertDeviceList()
-        composeRule.onNodeWithTag("doctorcam_test_screen").assertDoesNotExist()
+        composeRule.onNodeWithTag("uvc_vision_test_screen").assertDoesNotExist()
         composeRule.onNodeWithTag("debug_panel_expanded").assertIsDisplayed()
     }
 
     @Test
     fun debugPanelDragsCollapsesAndExpandsWithoutOpeningDuringDrag() {
         val originalOrientation = composeRule.activity.requestedOrientation
-        val originalWindow = composeRule.onNodeWithTag("doctorcam_devices_screen")
+        val originalWindow = composeRule.onNodeWithTag("uvc_vision_devices_screen")
             .fetchSemanticsNode().boundsInRoot
         assertTrue("本用例需要真实竖屏起点以验证横屏窗口变化", originalWindow.height > originalWindow.width)
         try {
@@ -79,7 +79,7 @@ class DoctorCamUiInstrumentedTest {
                 it.requestedOrientation = originalOrientation
             }
             composeRule.waitUntil(timeoutMillis = 10_000) {
-                val screen = composeRule.onAllNodesWithTag("doctorcam_devices_screen")
+                val screen = composeRule.onAllNodesWithTag("uvc_vision_devices_screen")
                     .fetchSemanticsNodes().firstOrNull()?.boundsInRoot
                 screen != null && screen.height > screen.width
             }
@@ -122,7 +122,7 @@ class DoctorCamUiInstrumentedTest {
             it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
         composeRule.waitUntil(timeoutMillis = 10_000) {
-            val screen = composeRule.onAllNodesWithTag("doctorcam_devices_screen")
+            val screen = composeRule.onAllNodesWithTag("uvc_vision_devices_screen")
                 .fetchSemanticsNodes().firstOrNull()?.boundsInRoot
             screen != null && screen.width > screen.height
         }
@@ -140,10 +140,10 @@ class DoctorCamUiInstrumentedTest {
 
     private fun assertDeviceList() {
         composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodesWithTag("doctorcam_empty_devices").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithTag("uvc_vision_empty_devices").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithTag("doctorcam_devices_screen").assertIsDisplayed()
-        composeRule.onNodeWithTag("doctorcam_empty_devices").assertIsDisplayed()
+        composeRule.onNodeWithTag("uvc_vision_devices_screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("uvc_vision_empty_devices").assertIsDisplayed()
         composeRule.onNodeWithText("设备列表").assertIsDisplayed()
         composeRule.onNodeWithText("暂无设备").assertIsDisplayed()
     }
@@ -160,7 +160,7 @@ class DoctorCamUiInstrumentedTest {
 
     private fun assertPanelInsideSafeArea(tag: String) {
         composeRule.waitForIdle()
-        val screen = composeRule.onNodeWithTag("doctorcam_devices_screen")
+        val screen = composeRule.onNodeWithTag("uvc_vision_devices_screen")
             .fetchSemanticsNode().boundsInRoot
         val panel = composeRule.onNodeWithTag(tag).assertIsDisplayed()
             .fetchSemanticsNode().boundsInRoot

@@ -15,7 +15,7 @@ private val LightColors = lightColorScheme(primary = Color(0xFF246393), secondar
 private val DarkColors = darkColorScheme(primary = Color(0xFF94CCFF), secondary = Color(0xFFBACBDD))
 
 @Composable
-fun DoctorCamTheme(content: @Composable () -> Unit) {
+fun UvcVisionTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
     val context = LocalContext.current
     val colors = if (Build.VERSION.SDK_INT >= 31) {

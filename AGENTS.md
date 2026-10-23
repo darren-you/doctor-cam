@@ -23,4 +23,4 @@
 
 以下是本仓业务边界，按本次修改对象选择，不默认整包加载；实际值从源码和配置读取。
 
-- [doctor-cam.md](.agents/doctor-cam.md)
+- [uvc-vision.md](.agents/uvc-vision.md)

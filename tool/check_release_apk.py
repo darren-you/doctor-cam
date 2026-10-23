@@ -13,9 +13,9 @@ import xml.etree.ElementTree as ET
 
 
 def inspect_apk(apk, apksigner, apkanalyzer):
-    expected_digest = os.environ.get("DOCTOR_CAM_ANDROID_SIGNING_CERT_SHA256", "").lower()
+    expected_digest = os.environ.get("UVC_VISION_ANDROID_SIGNING_CERT_SHA256", "").lower()
     if not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
-        raise ValueError("缺少有效的 DOCTOR_CAM_ANDROID_SIGNING_CERT_SHA256")
+        raise ValueError("缺少有效的 UVC_VISION_ANDROID_SIGNING_CERT_SHA256")
     signature = subprocess.run(
         [str(apksigner), "verify", "--verbose", "--print-certs", str(apk)],
         capture_output=True, text=True, check=False,

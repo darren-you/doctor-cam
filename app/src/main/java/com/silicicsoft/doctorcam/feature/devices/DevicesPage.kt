@@ -83,15 +83,15 @@ fun DevicesPage(onOpenCamera: (CameraRoute) -> Unit, viewModel: DevicesViewModel
         }
     }
     Scaffold(
-        modifier = Modifier.testTag("doctorcam_devices_screen"),
+        modifier = Modifier.testTag("uvc_vision_devices_screen"),
         topBar = { TopAppBar(title = { Text("设备列表") }) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("DoctorCam", style = MaterialTheme.typography.headlineMedium)
+            Text("UVC Vision", style = MaterialTheme.typography.headlineMedium)
             Text("连接 USB UVC 摄像头后，轻点预览，长按进入 Paddle 检测。", style = MaterialTheme.typography.bodyLarge)
             permissionMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             if (devices.isEmpty()) {
-                Card(Modifier.fillMaxWidth().testTag("doctorcam_empty_devices")) {
+                Card(Modifier.fillMaxWidth().testTag("uvc_vision_empty_devices")) {
                     Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Rounded.Usb, contentDescription = null)
                         Text("暂无设备", style = MaterialTheme.typography.titleLarge)

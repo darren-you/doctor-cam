@@ -36,7 +36,7 @@ class MediaRepository @Inject constructor(
                     coroutineContext.ensureActive()
                     drawDetections(frame)
                     val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.ROOT).format(Date())
-                    val fileName = "doctor-cam-$timestamp.jpg"
+                    val fileName = "uvc-vision-$timestamp.jpg"
                     val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         saveWithMediaStore(frame.bitmap, fileName) { coroutineContext.ensureActive() }
                     } else {

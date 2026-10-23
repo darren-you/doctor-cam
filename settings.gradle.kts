@@ -26,5 +26,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "doctor-cam"
+rootProject.name = "uvc-vision"
 include(":app")

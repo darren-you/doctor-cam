@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.1.2)
-project(DoctorCam LANGUAGES CXX)
+project(UvcVision LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(PADDLE_LITE_SDK_DIR "" CACHE PATH "已校验的 Paddle Lite SDK 构建目录")
 
 if(NOT ANDROID_ABI STREQUAL "arm64-v8a")
-    message(FATAL_ERROR "DoctorCam 只构建 arm64-v8a")
+    message(FATAL_ERROR "UVC Vision 只构建 arm64-v8a")
 endif()
 if(NOT EXISTS "${PADDLE_LITE_SDK_DIR}/include/paddle_api.h" OR
    NOT EXISTS "${PADDLE_LITE_SDK_DIR}/lib/arm64-v8a/libpaddle_api_light_bundled.a")

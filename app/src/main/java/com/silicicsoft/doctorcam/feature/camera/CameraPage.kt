@@ -80,7 +80,7 @@ fun CameraPage(route: CameraRoute, onBack: () -> Unit, viewModel: CameraViewMode
         }
     }
     Scaffold(
-        modifier = Modifier.testTag("doctorcam_camera_screen"),
+        modifier = Modifier.testTag("uvc_vision_camera_screen"),
         topBar = {
             TopAppBar(
                 title = { Text(if (route.detection) "Paddle 检测" else "UVC 预览") },

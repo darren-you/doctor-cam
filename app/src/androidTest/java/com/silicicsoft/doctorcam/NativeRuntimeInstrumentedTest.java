@@ -163,7 +163,7 @@ public class NativeRuntimeInstrumentedTest {
                     modelFile.getAbsolutePath(), labelFile.getAbsolutePath(), "LITE_POWER_HIGH"));
             String runtimeVersion = detector.getRuntimeVersion();
             assertFalse("运行库版本必须来自已创建的预测器", runtimeVersion.trim().isEmpty());
-            Log.i("DoctorCamSdkValidation", "Paddle Native runtime: " + runtimeVersion);
+            Log.i("UvcVisionSdkValidation", "Paddle Native runtime: " + runtimeVersion);
             assertValidResults(detector.processWithResults(squareBitmap), labelCount);
             int originalPixel = landscapeBitmap.getPixel(320, 179);
             assertValidResults(detector.processWithResults(landscapeBitmap), labelCount);

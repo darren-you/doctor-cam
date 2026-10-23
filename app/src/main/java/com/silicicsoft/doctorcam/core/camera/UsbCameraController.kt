@@ -37,7 +37,7 @@ class UsbCameraController @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val inferenceFactory: InferenceEngineFactory,
 ) {
-    private val workerThread = HandlerThread("doctor-cam-camera").apply { start() }
+    private val workerThread = HandlerThread("uvc-vision-camera").apply { start() }
     private val worker = Handler(workerThread.looper)
     private val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
     private val sessionId = AtomicLong()
